@@ -3,7 +3,8 @@ Code for analysis of iceberg size distributions extracted from very high-resolut
 
 The files that you need to run, in order, to execute the code are 
 
-## 1_generate_size_distrib.m: A Matlab wrapper code that will call all necessary Matlab functions in this repository to create iceberg size distributions from DEMs.
+### 1_generate_size_distrib.m: 
+A Matlab wrapper code that will call all necessary Matlab functions in this repository to create iceberg size distributions from DEMs.
 
 2_manually_adjust_fits.ipynb (optional!): Run 2_manually_adjust_fits.ipynb with Jupyter to use sliders to manually adjust the automated fits produced with the Matlab codes so that they are tuned to match the larger iceberg size classes in each distribution.
 
