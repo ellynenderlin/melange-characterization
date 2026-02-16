@@ -7,7 +7,7 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/');
 
 %site-specific info
 root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
-site_abbrev = 'ASG'; site_name = 'Nunatakassaap';
+site_abbrev = 'HLG'; site_name = 'Helheim Glacier';
 im_dir = [root_dir,site_abbrev,'/images/S2/'];
 % ref_image = 'S2A_21XWC_20180304_0_L2A_B08_clipped.tif'; %Alison = 'S2A_21XWC_20200731_1_L2A_B08_clipped.tif', %Zachariae = 'S2A_27XWH_20200802_3_L2A_B08_clipped.tif'
 % ref_image  = 'S2A_22WEB_20190216_0_L2A_B08_clipped.tif'; %SEK
@@ -42,6 +42,9 @@ clear I R;
 %create the map template with the reference date shown to start
 map_fig = figure; set(map_fig,'position',[850 50 800 600]);
 imagesc(im.x,im.y,imadjust(im.z./max(max(im.z)))); axis xy equal; colormap gray; drawnow; hold on;
+if contains(site_abbrev,'SEK')
+    set(gca,'xlim',[537000 559000],'ylim',[7668000 7683000]); 
+end
 xticks = get(gca,'xtick'); yticks = get(gca,'ytick');
 set(gca,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',16);
 xlabel('Easting (km)','fontsize',16); ylabel('Northing (km)','fontsize',16);
@@ -61,6 +64,9 @@ for j = 1:length(date_refs)
         clear I R;
         %plot
         imagesc(im.x,im.y,imadjust(im.z./max(max(im.z)))); axis xy equal; colormap gray; drawnow; hold on;
+        if contains(site_abbrev,'SEK')
+            set(gca,'xlim',[537000 559000],'ylim',[7668000 7683000]);
+        end
         set(gca,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',16);
         xlabel('Easting (km)','fontsize',16); ylabel('Northing (km)','fontsize',16);
         title([im_dates(im_refs(date_refs(j)),1:4),'/',im_dates(im_refs(date_refs(j)),5:6),'/',im_dates(im_refs(date_refs(j)),7:8)]);
@@ -79,6 +85,9 @@ for j = 1:length(date_refs)
             clear I R;
             %plot
             imagesc(im.x,im.y,imadjust(im.z./max(max(im.z)))); axis xy equal; colormap gray; drawnow; hold on;
+            if contains(site_abbrev,'SEK')
+                set(gca,'xlim',[537000 559000],'ylim',[7668000 7683000]);
+            end
             set(gca,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',16);
             xlabel('Easting (km)','fontsize',16); ylabel('Northing (km)','fontsize',16);
             title([im_dates(im_refs(date_refs(j)),1:4),'/',im_dates(im_refs(date_refs(j)),5:6),'/',im_dates(im_refs(date_refs(j)),7:8)]);

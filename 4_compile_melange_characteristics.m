@@ -6,7 +6,7 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/',...
     '/Users/ellynenderlin/Research/miscellaneous/general-code/ArcticMappingTools/',...
     '/Users/ellynenderlin/Research/miscellaneous/general-code/inpoly2/');
 % addpath('/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange-fragmentation-code/');
-addpath('/Users/ellynenderlin/Research/miscellaneous/melange-fragmentation-code/');
+addpath('/Users/ellynenderlin/Research/miscellaneous/melange-characterization-code/');
 
 %specify root path
 root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
@@ -66,7 +66,7 @@ geo_order = [{'ULS'},{'KOG'},{'ASG'},{'ILS'},{'UNS'},{'SAS'},{'UMS'},...
     {'KGS'},{'SEK'},{'HLG'},{'MGG'},{'MDG'},{'DJG'},{'ZIM'}];
 geo_names = [{'Ullip'},{'Nuussuup'},{'Nunatakassaap'},...
     {'Illullip'},{'Upernavik North'},{'Salliarutsip'},{'Umiammakku'},...
-    {'Kangilliup'},{'Sermeq Kujalleq'},{'Helheim'},{'Midgard'},...
+    {'Kangilliup'},{'Sermeq Kujalleq'},{'Helheim'},{'Nigertiip Apusiia'},...
     {'Magga Dan'},{'Daugaard Jensen'},{'Zachariae Isstrom'}];
 for j = 1:length(geo_order)
     geo_ind(j) = find(contains(string(sitenames),geo_order(j)));
@@ -277,7 +277,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
         end
     end
     close(tebergAfig);
-    % save([root_dir,sitenames(j,:),'/',sitenames(j,:),'-melange-masks.mat'],'melmask','-v7.3');
+    save([root_dir,sitenames(j,:),'/',sitenames(j,:),'-melange-masks.mat'],'melmask','-v7.3');
 
     %add manual delineations from images
     cd([root_dir,site_abbrev,'/termini/']);
@@ -707,7 +707,7 @@ close all; drawnow;
 BM_annual = []; BM_character = []; BA_annual = []; BA_character = [];
 site_naming = []; PS_X = []; PS_Y = []; sp_stats = [];
 
-disp(['Creating profile plots ignoring icebergs thinner than ',num2str(Hcutoff),'m & using ',vfilter,' speeds w/ dt ~',num2str(round([vdtmin,vdtmax])),' days']);
+disp(['Creating profile plots ignoring icebergs thinner than ',num2str(Hcutoff),'m & using ',vfilter,' speeds w/ dt range = [',num2str(round([vdtmin,vdtmax])),'] days']);
 %iterate
 for j = 1:length(MP)
     sitenames(j,:) = MP(j).name; seasons = MP(j).D.months;
@@ -1178,8 +1178,9 @@ for j = 1:length(MP)
 end
 
 %export overview data to a CSV (used for plotting sitemap in QGIS)
-TS = [array2table(site_naming(:,2)), array2table(PS_X), array2table(PS_Y), array2table(sp_stats)];
-column_names = ["Site Name","X (m)", "Y (m)","Melange thickness (m)","Melange buttressing (x10^6 N/m)"]; TS.Properties.VariableNames = column_names;
+TS = [array2table(site_naming), array2table(PS_X), array2table(PS_Y), array2table(sp_stats)]; %
+column_names = ["Site Abbreviation","Site Name","X (m): EPSG3413", "Y (m): EPSG3413","Melange thickness (m)","Melange buttressing (x10^6 N/m)" ]; %
+TS.Properties.VariableNames = column_names;
 writetable(TS,[root_dir,'GrIS-melange-sites.csv']);
 clear TS;
 

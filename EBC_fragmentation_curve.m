@@ -117,7 +117,7 @@ vl = v(1:i_cut); nl = n(1:i_cut);
 
 m = length(vl);
 A = [ones(m,1),vl];
-lhs = log(nl) - log(vl.^(-a)); % linearize by taking hte log
+lhs = log(nl) - log(vl.^(-a)); % linearize by taking the log
 % b = (A'*A)\(A'*lhs);
 b = pinv(A)*lhs; % psuedoinverse
 cl(1) = exp(b(1));
