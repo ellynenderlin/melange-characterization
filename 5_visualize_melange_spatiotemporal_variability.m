@@ -5,8 +5,7 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/',...
     '/Users/ellynenderlin/Research/miscellaneous/general-code/cmocean/',...
     '/Users/ellynenderlin/Research/miscellaneous/general-code/ArcticMappingTools/',...
     '/Users/ellynenderlin/Research/miscellaneous/general-code/inpoly2/');
-% addpath('/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange-fragmentation-code/');
-addpath('/Users/ellynenderlin/Research/miscellaneous/melange-fragmentation-code/');
+addpath('/Users/ellynenderlin/Research/miscellaneous/melange-characterization-code/');
 
 %specify root path
 root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
