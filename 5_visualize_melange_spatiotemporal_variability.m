@@ -17,7 +17,7 @@ ARcomp.best.autoALL = 2; % iceberg aspect ratio
 zthresh = 3; %cutoff elevation (m)
 
 %Thickness parameters:
-zcutoff = zthresh; %elevation threshold below which to ignore iceberge (m)
+zcutoff = zthresh; %elevation threshold below which to ignore icebergs (m)
 rho_i = 900; %ice density (kg/m^3)
 rho_w = 1026; %water density (kg/m^3)
 Hcutoff = round((rho_w/(rho_w-rho_i))*zcutoff); %H threshold for figure naming
@@ -79,7 +79,7 @@ big3 = [{'SEK'},{'HLG'},{'ZIM'}];
 
 
 %load the melange characteristic dataset created by compile_melange_characteristics.m
-load([root_dir,'GrIS-melange-characteristics.mat']);
+load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
 
 
 
@@ -229,9 +229,9 @@ for j = 1:length(MP)
     disp('extracted distributions');
 
     %load iceberg distribution profiles
-    D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_seasonal-profiles.csv'],"VariableNamingRule","preserve");
+    D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
     size_plslope = table2array(D(:,2:end)); clear D;
-    D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_seasonal-profiles.csv'],"VariableNamingRule","preserve");
+    D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
     res_A = table2array(D(:,2:end)); clear D;
     %find the last binned seasonal distribution with data
     for k = 1:4
@@ -664,14 +664,14 @@ for j = 1:length(MP)
 
 
     %compile the buttressing data for plotting
-    BM_annual = [BM_annual; squeeze(MP(j).B.butt_Meng(zcutoff+1,1,:))./10^6, squeeze(MP(j).B.butt_Meng(zcutoff+1,2,:))./10^6, squeeze(MP(j).B.butt_Meng(zcutoff+1,3,:))./10^6, squeeze(MP(j).B.butt_Meng(zcutoff+1,4,:))./10^6];
-    BM_character = [BM_character; nanmean(MP(j).B.butt_Meng(zcutoff+1,1,:))/10^6, nanmean(MP(j).B.butt_Meng(zcutoff+1,2,:))/10^6, nanmean(MP(j).B.butt_Meng(zcutoff+1,3,:))/10^6, nanmean(MP(j).B.butt_Meng(zcutoff+1,4,:))/10^6];
-    BA_annual = [BA_annual; squeeze(MP(j).B.butt_Amundson(zcutoff+1,1,:))./10^6, squeeze(MP(j).B.butt_Amundson(zcutoff+1,2,:))./10^6, squeeze(MP(j).B.butt_Amundson(zcutoff+1,3,:))./10^6, squeeze(MP(j).B.butt_Amundson(zcutoff+1,4,:))./10^6];
-    BA_character = [BA_character; nanmean(MP(j).B.butt_Amundson(zcutoff+1,1,:))/10^6, nanmean(MP(j).B.butt_Amundson(zcutoff+1,2,:))/10^6, nanmean(MP(j).B.butt_Amundson(zcutoff+1,3,:))/10^6, nanmean(MP(j).B.butt_Amundson(zcutoff+1,4,:))/10^6];
+    BM_annual = [BM_annual; squeeze(MP(j).B.butt_Meng(1,1,:))./10^6, squeeze(MP(j).B.butt_Meng(1,2,:))./10^6, squeeze(MP(j).B.butt_Meng(1,3,:))./10^6, squeeze(MP(j).B.butt_Meng(1,4,:))./10^6];
+    BM_character = [BM_character; nanmean(MP(j).B.butt_Meng(1,1,:))/10^6, nanmean(MP(j).B.butt_Meng(1,2,:))/10^6, nanmean(MP(j).B.butt_Meng(1,3,:))/10^6, nanmean(MP(j).B.butt_Meng(1,4,:))/10^6];
+    BA_annual = [BA_annual; squeeze(MP(j).B.butt_Amundson(1,1,:))./10^6, squeeze(MP(j).B.butt_Amundson(1,2,:))./10^6, squeeze(MP(j).B.butt_Amundson(1,3,:))./10^6, squeeze(MP(j).B.butt_Amundson(1,4,:))./10^6];
+    BA_character = [BA_character; nanmean(MP(j).B.butt_Amundson(1,1,:))/10^6, nanmean(MP(j).B.butt_Amundson(1,2,:))/10^6, nanmean(MP(j).B.butt_Amundson(1,3,:))/10^6, nanmean(MP(j).B.butt_Amundson(1,4,:))/10^6];
 
 
     %save the data and the figure
-    save([root_dir,'GrIS-melange-characteristics.mat'],'MP','-v7.3');
+    save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
     saveas(sitefig,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-speed-size_',num2str(Hcutoff),'m-Hthreshold_',num2str(vdtmin),'-',num2str(vdtmax),'dt-',vfilter,'-speeds_',sampling,'-profiles.png'],'png'); %save the plots
     exportgraphics(sitefig,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-speed-size_',num2str(Hcutoff),'m-Hthreshold_',num2str(vdtmin),'-',num2str(vdtmax),'dt-',vfilter,'-speeds_',sampling,'-profiles.tif'],Resolution=600);
     saveas(bergAfig,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-melange-properties_profiles.png'],'png'); %save the plots
@@ -692,14 +692,14 @@ for j = 1:length(MP)
 
 end
 figure(missfig); miss_leg = legend(pm,'terminus','10 km','20 km'); set(miss_leg,'location','southeast');
-saveas(missfig,[root_dir,'GrIS-bergybit_scatterplot.png'],'png'); 
-exportgraphics(missfig,[root_dir,'GrIS-bergybit_scatterplot.tif'],Resolution=600);
+saveas(missfig,[root_dir,'GrIS-bergybit_',num2str(zcutoff),'m-zcutoff_scatterplot.png'],'png'); 
+exportgraphics(missfig,[root_dir,'GrIS-bergybit_',num2str(zcutoff),'m-zcutoff_scatterplot.tif'],Resolution=600);
 clear pm;
 
 
 %save the GrIS-wide profiles
-saveas(Hfig,[root_dir,'GrIS-melange_thickness-speed_profiles.png'],'png'); 
-exportgraphics(Hfig,[root_dir,'GrIS-melange_thickness-speed_profiles.tif'],Resolution=600);
+saveas(Hfig,[root_dir,'GrIS-melange_thickness-speed_',num2str(zcutoff),'m-zcutoff_profiles.png'],'png'); 
+exportgraphics(Hfig,[root_dir,'GrIS-melange_thickness-speed_',num2str(zcutoff),'m-zcutoff_profiles.tif'],Resolution=600);
 % saveas(Hfig,[root_dir,'GrIS-melange-thickness_profiles.png'],'png'); 
 % saveas(Vfig,[root_dir,'GrIS-melange-speed_profiles.png'],'png'); 
 
@@ -750,8 +750,8 @@ disp(['Medians for ',char(season_names(2)),' = ',num2str(round(nanmedian(BM_char
 disp(['Medians for ',char(season_names(3)),' = ',num2str(round(nanmedian(BM_character(~isnan(BM_character(:,3)) & ~isnan(BA_character(:,3)),3),"all"),2)),...
     ' and ',num2str(round(nanmedian(BA_character(~isnan(BM_character(:,3)) & ~isnan(BA_character(:,3)),3),"all"),2)),'x10^6 N/m']);
 %save the buttressing plot
-saveas(buttfig,[root_dir,'GrIS-melange_buttressing_histograms.png'],'png'); 
-exportgraphics(buttfig,[root_dir,'GrIS-melange_buttressing_histograms.tif'],Resolution=600);
+saveas(buttfig,[root_dir,'GrIS-melange_buttressing_',num2str(zcutoff),'m-zcutoff_histograms.png'],'png'); 
+exportgraphics(buttfig,[root_dir,'GrIS-melange_buttressing_',num2str(zcutoff),'m-zcutoff_histograms.tif'],Resolution=600);
 
 
 %% display the seasonal information for each site (GRL paper Table)
@@ -790,11 +790,11 @@ for j = 1:length(geo_ind)
         clear seas_refs;
 
         %near-terminus thickness
-        disp(['    thickness (m): ',num2str(round(nanmean(MP(geo_ind(j)).B.Ho(zcutoff+1,k,:)),1))]);
+        disp(['    thickness (m): ',num2str(round(nanmean(MP(geo_ind(j)).B.Ho(1,k,:)),1))]);
 
         %buttressing
-        disp(['    packing-based buttressing (N/m): ',num2str(round(nanmean(MP(geo_ind(j)).B.butt_Meng(zcutoff+1,k,:))./10^6,2))]);
-        disp(['    strainrate-based buttressing (N/m): ',num2str(round(nanmean(MP(geo_ind(j)).B.butt_Amundson(zcutoff+1,k,:))./10^6,2))]);
+        disp(['    packing-based buttressing (N/m): ',num2str(round(nanmean(MP(geo_ind(j)).B.butt_Meng(1,k,:))./10^6,2))]);
+        disp(['    strainrate-based buttressing (N/m): ',num2str(round(nanmean(MP(geo_ind(j)).B.butt_Amundson(1,k,:))./10^6,2))]);
     end
 
     clear zdate datest dateout zyrs zmos;
@@ -944,7 +944,7 @@ for j = 1:length(MP)
     clear Tdist* zseas Tseas;
 end
 %resave the data (as needed)
-save([root_dir,'GrIS-melange-characteristics.mat'],'MP','-v7.3');
+save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
 
 %plot all the characteristic monthly seasonal terminus anomaly timeseries
 seasterm_fig = figure; set(seasterm_fig,'position',[50 50 1200 400]);
@@ -1004,8 +1004,9 @@ disp('Done plotting terminus timeseries');
 
 
 %% create overview maps for each site
+if zcutoff == 3
 cd(root_dir);
-load([root_dir,'GrIS-melange-characteristics.mat']);
+load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
 
 %plot option
 suffix = 'site-map_bigfont'; %add 'bigfont' to the suffix if using 30pt
@@ -1433,7 +1434,7 @@ for j = 1:length(MP)
 end
 close all;
 disp('Done creating site maps');
-
+end
 
 %% plot iceberg size distributions as a gif & as subplots
 %distribution for a site, then adds the fall distribution (if it exists)
@@ -1444,6 +1445,7 @@ disp('Done creating site maps');
 si = find(MP(1).D.area <= 100,1,'last');
 bi = find(MP(1).D.area <= 10^5,1,'last');
 
+if zcutoff == 3
 %create the figure
 dist_fig = figure; set(dist_fig,'position',[50 850 800 600]);
 loglog(MP(1).D.area,MP(geo_ind(1)).D.bergs(2,:),'-','color',seas_cmap(2,:),'linewidth',2); hold on;
@@ -1559,6 +1561,7 @@ pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)+0.03 1.2*pos(3) pos
 drawnow;
 saveas(dist_fig,[root_dir,'GrIS-melange_iceberg-distribution_loglog.png'],'png'); %save the plot
 close all;
+end
 
 %% plot seasonal size distributions with empirical fits to demonstrate bergy bit misfits
 
@@ -1902,6 +1905,6 @@ for l = 1:2
     disp('moving on')
 end
 set(seas_leg,'position',[0.43 0.94 0.2,0.03]);
-saveas(subdist_fig,[root_dir,'GrIS-melange_iceberg-distribution-variability_',suffix,'.png'],'png'); %save the plot
-exportgraphics(subdist_fig,[root_dir,'GrIS-melange_iceberg-distribution-variability_',suffix,'.tif'],Resolution=600);
+saveas(subdist_fig,[root_dir,'GrIS-melange_iceberg-distribution-variability_',num2str(zcutoff),'m-zcutoff_',suffix,'.png'],'png'); %save the plot
+exportgraphics(subdist_fig,[root_dir,'GrIS-melange_iceberg-distribution-variability_',num2str(zcutoff),'m-zcutoff_',suffix,'.tif'],Resolution=600);
 

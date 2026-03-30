@@ -14,10 +14,10 @@ root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
 %define custom parameters for size distributions
 transect_inc = 1000; %distance between transects along the centerline (meters)
 ARcomp.best.autoALL = 2; % iceberg aspect ratio 
-zthresh = 3; %cutoff elevation (m)
+zthresh = 5; %cutoff elevation (m)
 
 %Thickness parameters:
-zcutoff = zthresh; %elevation threshold below which to ignore iceberge (m)
+zcutoff = zthresh; %elevation threshold below which to ignore icebergs (m)
 rho_i = 900; %ice density (kg/m^3)
 rho_w = 1026; %water density (kg/m^3)
 Hcutoff = round((rho_w/(rho_w-rho_i))*zcutoff); %H threshold for figure naming
@@ -52,7 +52,10 @@ seas_cmap = [5,113,176; 202,0,32; 244,165,130; 146,197,222]/255; %blue/orange/re
 % seas_cmap = [194,165,207; 123,50,148; 0,136,55; 166,219,160]/255; %purple/green
 close all;
 
-%identify the site folders
+%identify the site folders: note that the code will go through sitenames
+%alphabetically based on index, so if you had 4 sites but then added
+%another one with a name that is in the middle of the others, it would
+%re-run the code for the 5th site and add it to the end of the structure 
 cd(root_dir);
 sites = dir; sitenames = [];
 for i = 1:length(sites)
@@ -78,25 +81,50 @@ big3 = [{'SEK'},{'HLG'},{'ZIM'}];
 disp('Extract ITS_LIVE velocities via Import_itslive_point_timeseries.ipynb & save locally before continuing!')
 
 %% option to reload the existing data if any data have been saved
-if exist([root_dir,'GrIS-melange-characteristics.mat']) == 2
-    reload = questdlg('Reload the existing centerline data & start from there?',...
-        'data reload','1) Yes: reload','2) No: start fresh','1) Yes: reload');
-    switch reload
-        case '1) Yes: reload'
-            load([root_dir,'GrIS-melange-characteristics.mat']);
-            if length(MP) < size(sitenames,1)
-                site_start = length(MP)+1;
-                disp(['...restarting on site #',num2str(site_start),' (',sitenames(site_start,:),')']);
-            else
-                error('data reloaded and dataset is fully processed');
-            end
-        case '2) No: start fresh'
-            site_start = 1;
-            MP = struct;
+if ~isempty(dir([root_dir,'GrIS-melange-characteristics_*m-zcutoff.mat']))
+    %reload complete dataset if desired
+    if exist([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']) == 2
+        restarting = questdlg('Reload the existing centerline data to add more sites?',...
+            'data reload','1) Yes: restarting','2) No: start fresh','1) Yes: starting');
+        switch restarting
+            case '1) Yes: starting'
+                load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+                if length(MP) < size(sitenames,1)
+                    site_start = length(MP)+1;
+                    disp(['...restarting on site #',num2str(site_start),' (',sitenames(site_start,:),')']);
+                else
+                    error('data reloaded and dataset is fully processed');
+                end
+                reload = 'Yes';
+            case '2) No: start fresh'
+                site_start = 1;
+                MP = struct;
+                reload = 'No';
+        end
+    else
+        %load previously-processed terminus & velocity data if desired
+        reload = questdlg('Reload terminus & velocity data from a dataset with a different zcutoff?',...
+            'data reload','1) Yes: reload','2) No: start fresh','1) Yes: reload');
+        switch reload
+            case '1) Yes: reload'
+                site_start = 1;
+                MPfiles = dir('GrIS-melange-characteristics_*m-zcutoff.mat'); load([root_dir,MPfiles(1).name]);
+                %clear out all variables that rely on the elevation cutoff
+                MP = rmfield(MP,'B');
+                for j = 1:length(MP)
+                    MP(j).Z = rmfield(MP(j).Z,{'Hseas'});
+                    MP(j).D = rmfield(MP(j).D,{'bergs'});
+                end
+            case '2) No: start fresh'
+                site_start = 1;
+                MP = struct;
+        end
     end
 else
+    %starting the code from scratch
     site_start = 1;
     MP = struct;
+    reload = 'No';
 end
 disp('Move on to the next subsection in order to compile data & generate figures.')
 
@@ -225,131 +253,144 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
         clear datest;
     end
 
-    %plot the image
-    tebergAfig = figure; set(tebergAfig,'position',[50 50 1200 1200]);
-    imagesc(im.x(min(xlims):max(xlims)),im.y(min(ylims):max(ylims)),imadjust(im_subset)); axis xy equal; colormap gray; drawnow; hold on;
-    set(gca,'xlim',[min(melmask.uncropped.x) max(melmask.uncropped.x)],'ylim',[min(melmask.uncropped.y) max(melmask.uncropped.y)],'fontsize',16);
-    for p = 1:size(melmask.dated,2)
-        zdate(p) = convert_to_decimaldate(char(MP(j).Z.date(p)));
-        zdatetime(p) = datetime(MP(j).Z.date{p},'InputFormat','yyyyMMdd');
-        zyrs(p) = year(zdatetime(p)); zmos(p) = month(zdatetime(p));
+    %compile terminus position-based data
+    if contains(reload,'No')
+        %plot the image & flag melange masks
+        tebergAfig = figure; set(tebergAfig,'position',[50 50 1200 1200]);
+        imagesc(im.x(min(xlims):max(xlims)),im.y(min(ylims):max(ylims)),imadjust(im_subset)); axis xy equal; colormap gray; drawnow; hold on;
+        set(gca,'xlim',[min(melmask.uncropped.x) max(melmask.uncropped.x)],'ylim',[min(melmask.uncropped.y) max(melmask.uncropped.y)],'fontsize',16);
+        for p = 1:size(melmask.dated,2)
+            zdate(p) = convert_to_decimaldate(char(MP(j).Z.date(p)));
+            zdatetime(p) = datetime(MP(j).Z.date{p},'InputFormat','yyyyMMdd');
+            zyrs(p) = year(zdatetime(p)); zmos(p) = month(zdatetime(p));
 
-        %plot the melange outline and flag the inland boundary as the
-        %terminus if not already completed or dataset is updated
-        if isfield(MP(j).Z,'termflag')
-            if length(MP(j).Z.termflag) ~= length(melmask.dated)
+            %plot the melange outline and flag the inland boundary as the
+            %terminus if not already completed or dataset is updated
+            if isfield(MP(j).Z,'termflag')
+                if length(MP(j).Z.termflag) ~= length(melmask.dated)
 
-                %plot the melange mask for the given date
-                imagesc(im.x(min(xlims):max(xlims)),im.y(min(ylims):max(ylims)),imadjust(im_subset)); axis xy equal; colormap gray; drawnow; hold on;
-                set(gca,'xlim',[min(melmask.uncropped.x) max(melmask.uncropped.x)],'ylim',[min(melmask.uncropped.y) max(melmask.uncropped.y)],'fontsize',16);
-                plot(C.X,C.Y,'.k'); hold on;
-                plot(melmask.dated(p).x,melmask.dated(p).y,'-m','linewidth',2); drawnow;
+                    %plot the melange mask for the given date
+                    imagesc(im.x(min(xlims):max(xlims)),im.y(min(ylims):max(ylims)),imadjust(im_subset)); axis xy equal; colormap gray; drawnow; hold on;
+                    set(gca,'xlim',[min(melmask.uncropped.x) max(melmask.uncropped.x)],'ylim',[min(melmask.uncropped.y) max(melmask.uncropped.y)],'fontsize',16);
+                    plot(C.X,C.Y,'.k'); hold on;
+                    plot(melmask.dated(p).x,melmask.dated(p).y,'-m','linewidth',2); drawnow;
 
-                %check if DEM-based delineations have already been labeled as the
-                %real terminus or the DEM edge
-                answer = questdlg('Is the terminus delineation good?',...
-                    'terminus delineation','1) Yes: wiggly & good','2) No: DEM edge (straight)','3) No: wonky polygon','1) Yes: wiggly & good');
-                switch answer
-                    case '1) Yes: wiggly & good'
-                        term_trace = [term_trace; 1]; melmask.dated(length(term_trace)).terminus = 1;
-                        MP(j).Z.termflag(p) = 1;
-                    case '2) No: DEM edge (straight)'
-                        term_trace = [term_trace; 0]; melmask.dated(length(term_trace)).terminus = 1;
-                        MP(j).Z.termflag(p) = 0;
-                    case '3) No: wonky polygon'
-                        removed_flag = fix_individual_melange_masks(root_dir,sitenames(j,:),melmask,melmask.dated(p).datestring);
-                        if strmatch(removed_flag,'removed')
-                            %removed the DEM from melmask so reload it
-                            load([MP(j).name,'-melange-masks.mat']);
-                            DEM_num = size(melmask.dated,2); p = p-1; %reset counters to account for removed data
-                        else
+                    %check if DEM-based delineations have already been labeled as the
+                    %real terminus or the DEM edge
+                    answer = questdlg('Is the terminus delineation good?',...
+                        'terminus delineation','1) Yes: wiggly & good','2) No: DEM edge (straight)','3) No: wonky polygon','1) Yes: wiggly & good');
+                    switch answer
+                        case '1) Yes: wiggly & good'
                             term_trace = [term_trace; 1]; melmask.dated(length(term_trace)).terminus = 1;
                             MP(j).Z.termflag(p) = 1;
-                        end
+                        case '2) No: DEM edge (straight)'
+                            term_trace = [term_trace; 0]; melmask.dated(length(term_trace)).terminus = 1;
+                            MP(j).Z.termflag(p) = 0;
+                        case '3) No: wonky polygon'
+                            removed_flag = fix_individual_melange_masks(root_dir,sitenames(j,:),melmask,melmask.dated(p).datestring);
+                            if strmatch(removed_flag,'removed')
+                                %removed the DEM from melmask so reload it
+                                load([MP(j).name,'-melange-masks.mat']);
+                                DEM_num = size(melmask.dated,2); p = p-1; %reset counters to account for removed data
+                            else
+                                term_trace = [term_trace; 1]; melmask.dated(length(term_trace)).terminus = 1;
+                                MP(j).Z.termflag(p) = 1;
+                            end
+                    end
+                    clear answer; cla;
+                else
+                    term_trace(p) = MP(j).Z.termflag(p);
+                    %plot the melange mask for the given date
+                    plot(melmask.dated(p).x,melmask.dated(p).y,'-m','linewidth',2); drawnow;
                 end
-                clear answer; cla;
-            else
-                term_trace(p) = MP(j).Z.termflag(p);
-                %plot the melange mask for the given date
-                plot(melmask.dated(p).x,melmask.dated(p).y,'-m','linewidth',2); drawnow;
             end
         end
-    end
-    close(tebergAfig);
-    save([root_dir,sitenames(j,:),'/',sitenames(j,:),'-melange-masks.mat'],'melmask','-v7.3');
+        close(tebergAfig);
+        save([root_dir,sitenames(j,:),'/',sitenames(j,:),'-melange-masks.mat'],'melmask','-v7.3');
 
-    %add manual delineations from images
-    cd([root_dir,site_abbrev,'/termini/']);
-    % termfiles = dir('*term*.shp');
-    termfile_names = {[site_abbrev,'_termpicks.shp'],[site_abbrev,'-termini-EPSG3413_2019-2023.shp']}; %specify consistent data sources
-    for l = 1:length(termfile_names)
-        % load the shapefile
-        % if ismember(termfiles(l).name,termfile_names)
-        term = shaperead(char(termfile_names(l)));
-        for k = 1:length(term)
-            term_date(k) = datenum(term(k).Date,'yyyy-mm-dd');
-        end
-        [~,idx] = sort(term_date);
-        for k = 1:length(term)
-            sorted_term(k) = term(idx(k));
-        end
-        clear term; term = sorted_term; clear sorted_term term_date;
-        %convert format of TermPicks dates
-        bad_ind = [];
-        for k = 1:length(term)
-            %isolate the year, moth, and day from the date
-            if ~isfield(term(k),'Year')
-                term(k).Year = num2str(year(term(k).Date));
-                term(k).Month = num2str(month(term(k).Date));
-                term(k).Day = num2str(day(term(k).Date));
-            else
-                if k == 1 %wipe out existing data in case format is inconsistent with what I want
-                    term = rmfield(term,{'Year','Month','Day'});
+
+        %add manual delineations from images
+        cd([root_dir,site_abbrev,'/termini/']);
+        % termfiles = dir('*term*.shp');
+        termfile_names = {[site_abbrev,'_termpicks.shp'],[site_abbrev,'-termini-EPSG3413_2019-2023.shp']}; %specify consistent data sources
+        for l = 1:length(termfile_names)
+            % load the shapefile
+            % if ismember(termfiles(l).name,termfile_names)
+            term = shaperead(char(termfile_names(l)));
+            for k = 1:length(term)
+                term_date(k) = datenum(term(k).Date,'yyyy-mm-dd');
+            end
+            [~,idx] = sort(term_date);
+            for k = 1:length(term)
+                sorted_term(k) = term(idx(k));
+            end
+            clear term; term = sorted_term; clear sorted_term term_date;
+            %convert format of TermPicks dates
+            bad_ind = [];
+            for k = 1:length(term)
+                %isolate the year, moth, and day from the date
+                if ~isfield(term(k),'Year')
+                    term(k).Year = num2str(year(term(k).Date));
+                    term(k).Month = num2str(month(term(k).Date));
+                    term(k).Day = num2str(day(term(k).Date));
+                else
+                    if k == 1 %wipe out existing data in case format is inconsistent with what I want
+                        term = rmfield(term,{'Year','Month','Day'});
+                    end
+                    term(k).Year = num2str(year(term(k).Date));
+                    term(k).Month = num2str(month(term(k).Date));
+                    term(k).Day = num2str(day(term(k).Date));
                 end
-                term(k).Year = num2str(year(term(k).Date));
-                term(k).Month = num2str(month(term(k).Date));
-                term(k).Day = num2str(day(term(k).Date));
-            end
 
-            %convert date to same format as used for elevation data
-            if length(term(k).Month) == 1; term(k).Month = ['0',term(k).Month]; end
-            if length(term(k).Day) == 1; term(k).Day = ['0',term(k).Day]; end
-            YYYYMMDD(k) = string([term(k).Year,term(k).Month,term(k).Day]);
-            %convert to datetimes
-            try
-                datestr(k) = datetime(term(k).Date,'InputFormat','yyyy-mm-dd');
-            catch
-                bad_ind = [bad_ind,k];
+                %convert date to same format as used for elevation data
+                if length(term(k).Month) == 1; term(k).Month = ['0',term(k).Month]; end
+                if length(term(k).Day) == 1; term(k).Day = ['0',term(k).Day]; end
+                YYYYMMDD(k) = string([term(k).Year,term(k).Month,term(k).Day]);
+                %convert to datetimes
+                try
+                    datestr(k) = datetime(term(k).Date,'InputFormat','yyyy-mm-dd');
+                catch
+                    bad_ind = [bad_ind,k];
+                end
             end
-        end
-        %remove data with erroneous dates
-        term(bad_ind) = [];
-        YYYYMMDD(bad_ind) = [];
+            %remove data with erroneous dates
+            term(bad_ind) = [];
+            YYYYMMDD(bad_ind) = [];
 
-        %find the intersection of each terminus trace with the
-        %centerline and save to the structure
-        if l == 1
-            start_ref = 0;
-            MP(j).T = rmfield(MP(j).T,{'date','termX','termY'});
-            % MP(j).T.date = []; MP(j).T.termX = []; MP(j).T.termY = []; MP(j).T.termdist = [];
-        else
-            start_ref = length(MP(j).T.date);
-        end
-        for k = 1:length(term)
-            [xis,yis,iis] = polyxpoly(term(k).X,term(k).Y,MP(j).V.X,MP(j).V.Y);
-            MP(j).T.date(start_ref+k) = {char(YYYYMMDD(k))};
-            if ~isempty(xis)
-                MP(j).T.termX(1,start_ref+k) = xis(end); MP(j).T.termY(1,start_ref+k) = yis(end);
+            %find the intersection of each terminus trace with the
+            %centerline and save to the structure
+            if l == 1
+                start_ref = 0;
+                MP(j).T = rmfield(MP(j).T,{'date','termX','termY'});
+                % MP(j).T.date = []; MP(j).T.termX = []; MP(j).T.termY = []; MP(j).T.termdist = [];
             else
-                MP(j).T.termX(1,start_ref+k) = NaN; MP(j).T.termY(1,start_ref+k) = NaN;
+                start_ref = length(MP(j).T.date);
             end
-            clear xis yis iis;
+            for k = 1:length(term)
+                [xis,yis,iis] = polyxpoly(term(k).X,term(k).Y,MP(j).V.X,MP(j).V.Y);
+                MP(j).T.date(start_ref+k) = {char(YYYYMMDD(k))};
+                if ~isempty(xis)
+                    MP(j).T.termX(1,start_ref+k) = xis(end); MP(j).T.termY(1,start_ref+k) = yis(end);
+                else
+                    MP(j).T.termX(1,start_ref+k) = NaN; MP(j).T.termY(1,start_ref+k) = NaN;
+                end
+                clear xis yis iis;
+            end
+            MP(j).T.date(isnan(MP(j).T.termX)) = [];
+            MP(j).T.termY(isnan(MP(j).T.termX)) = []; MP(j).T.termX(isnan(MP(j).T.termX)) = [];
+            %clear variables
+            clear term YYYYMMDD datestr idx;
+            % end
         end
-        MP(j).T.date(isnan(MP(j).T.termX)) = [];
-        MP(j).T.termY(isnan(MP(j).T.termX)) = []; MP(j).T.termX(isnan(MP(j).T.termX)) = [];
-        %clear variables
-        clear term YYYYMMDD datestr idx;
-        % end
+
+    else
+        %convert info previously saved to the structure (and reloaded) into vectors
+        for p = 1:size(melmask.dated,2)
+            zdate(p) = convert_to_decimaldate(char(MP(j).Z.date(p)));
+            zdatetime(p) = datetime(MP(j).Z.date{p},'InputFormat','yyyyMMdd');
+            zyrs(p) = year(zdatetime(p)); zmos(p) = month(zdatetime(p));
+            term_trace(p) = MP(j).Z.termflag(p);
+        end
     end
 
     %intersect the centerline with each time-stamped terminus position
@@ -385,6 +426,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
         end
         clear xis yis iis;
     end
+
     %compile the data for filling in terminus gaps
     term_decidates = [Tdate, zdate(term_trace ==1)]; term_dates = [Tdatetime, zdatetime(term_trace ==1)];
     term_X = [MP(j).T.termX, MP(j).Z.termX(term_trace == 1)];
@@ -464,42 +506,44 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
     %load the velocity timeseries for the transect-centerline intersection
     %points and plot a velocity profile with the closest mid-date to each
     %elevation profile (if after 2013, when Landsat 8 was launched)
-    vel_pts = dir([root_dir,sitenames(j,:),'/velocities/']);
-    for i = 1:length(vel_pts)
-        if contains(vel_pts(i).name,'velocity')
-            pt_ref = str2num(vel_pts(i).name(end-5:end-4));
+    % if contains(reload,'No')
+        vel_pts = dir([root_dir,sitenames(j,:),'/velocities/']);
+        for i = 1:length(vel_pts)
+            if contains(vel_pts(i).name,'velocity')
+                pt_ref = str2num(vel_pts(i).name(end-5:end-4));
 
-            %read the file
-            V = readtable([root_dir,sitenames(j,:),'/velocities/',vel_pts(i).name]);
+                %read the file
+                V = readtable([root_dir,sitenames(j,:),'/velocities/',vel_pts(i).name]);
 
-            %filter out all the velocities based on temporal resolution
-            short_dts = find(V.days_dt>vdtmin & V.days_dt<vdtmax); %get rid of all velocities with coarse temporal resolution
-            vel_dates = V.mid_date(short_dts); vel_dts = V.days_dt(short_dts);
-            vels = V.velocity_m_yr_(short_dts); vels(vels == 0) = NaN;
+                %filter out all the velocities based on temporal resolution
+                short_dts = find(V.days_dt>vdtmin & V.days_dt<vdtmax); %get rid of all velocities with coarse temporal resolution
+                vel_dates = V.mid_date(short_dts); vel_dts = V.days_dt(short_dts);
+                vels = V.velocity_m_yr_(short_dts); vels(vels == 0) = NaN;
 
-            %convert datetime to a decimal date
-            for k = 1:length(vel_dates)
-                decidate(k) = convert_to_decimaldate(vel_dates(k),'yyyy-MM-dd HH:mm:ss.SSS');
-            end
-
-            %create an average velocity profile using all velocity
-            %observations with a mid-date within 15 days of the DEM
-            for p = 1:length(MP(j).Z.date)
-                if zdate(p) > 2013
-                    datediff = abs(zdate(p) - decidate);
-                    MP(j).V.date(pt_ref,p) = string(nanmean(datetime(vel_dates(find(abs(datediff) <= (15/365))),'Format','yyyyMMdd')));
-                    MP(j).V.dt(pt_ref,p) = nanmean(vel_dts(find(abs(datediff) <= (15/365))));
-                    MP(j).V.V(pt_ref,p) = nanmean(vels(find(abs(datediff) <= (15/365))));
-                    clear datediff;
-                else
-                    MP(j).V.date(pt_ref,p) = NaN; MP(j).V.dt(pt_ref,p) = NaN;
-                    MP(j).V.V(pt_ref,p) = NaN;
+                %convert datetime to a decimal date
+                for k = 1:length(vel_dates)
+                    decidate(k) = convert_to_decimaldate(vel_dates(k),'yyyy-MM-dd HH:mm:ss.SSS');
                 end
-            end
 
-            clear pt_ref V short_dts vel_dates vel_dts vels decidate;
+                %create an average velocity profile using all velocity
+                %observations with a mid-date within 15 days of the DEM
+                for p = 1:length(MP(j).Z.date)
+                    if zdate(p) > 2013
+                        datediff = abs(zdate(p) - decidate);
+                        MP(j).V.date(pt_ref,p) = string(nanmean(datetime(vel_dates(find(abs(datediff) <= (15/365))),'Format','yyyyMMdd')));
+                        MP(j).V.dt(pt_ref,p) = nanmean(vel_dts(find(abs(datediff) <= (15/365))));
+                        MP(j).V.V(pt_ref,p) = nanmean(vels(find(abs(datediff) <= (15/365))));
+                        clear datediff;
+                    else
+                        MP(j).V.date(pt_ref,p) = NaN; MP(j).V.dt(pt_ref,p) = NaN;
+                        MP(j).V.V(pt_ref,p) = NaN;
+                    end
+                end
+
+                clear pt_ref V short_dts vel_dates vel_dts vels decidate;
+            end
         end
-    end
+    % end
 
     %establish a coordinate system relative to the inland-most melange
     %elevation observations
@@ -617,7 +661,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
     subplot(subT);
     pos = get(subT,'position'); set(subT,'position',[pos(1)+0.02 pos(2) pos(3) pos(4)]);
     drawnow;
-    saveas(gcf,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-centerline-elev-speed-terminus_subplots.png'],'png'); %save the plots
+    saveas(gcf,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-centerline-elev-speed-terminus_',num2str(zcutoff),'m-zcutoff_subplots.png'],'png'); %save the plots
 
     %clear profile variables
     clear im im_subset LCdir zprofs zdate* mean_prof seaward_idx centerline C vel_pts term_trace melmask* yrs mos zyrs zmos;
@@ -625,7 +669,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
     clear bergdist dts inland_idx seaward_idx Tdate* term_* Tmos Tyrs;
 
     %save the structure with the centerline data
-    save([root_dir,'GrIS-melange-characteristics.mat'],'MP','-v7.3');
+    save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
 
     %create "climatologies" of seasonal size distributions for each site
     D = readtable([root_dir,sitenames(j,:),'/',sitenames(j,:),'-iceberg-distribution-timeseries.csv']);
@@ -685,11 +729,11 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
     clear D berg_* ps ;
 
     %save the structure with the seasonal distribution data
-    save([root_dir,'GrIS-melange-characteristics.mat'],'MP','-v7.3');
+    save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
     close all;
 
 end
-
+disp('Done compiling terminus position, elevation, and speed data')
 
 %% extract melange attributes, estimate buttressing, & make overview plots
 close all; drawnow;
@@ -732,19 +776,19 @@ for j = 1:length(MP)
             for k = 1:4
                 if ~isempty(inland_idx(ismember(mos_yr,seasons(k,:))==1))
                     MP(j).B.ref(1,k,p) = mean(inland_idx(ismember(mos_yr,seasons(k,:))==1))-1;
-                    MP(j).B.Ho(zcutoff+1,k,p) = H_seas(1,k,p);
-                    MP(j).B.packing(zcutoff+1,k,p) = pack_seas(1,k,p);
+                    MP(j).B.Ho(1,k,p) = H_seas(1,k,p);
+                    MP(j).B.packing(1,k,p) = pack_seas(1,k,p);
                 else
                     MP(j).B.ref(1,k,p) = NaN;
-                    MP(j).B.Ho(zcutoff+1,k,p) = NaN;
-                    MP(j).B.packing(zcutoff+1,k,p) = NaN;
+                    MP(j).B.Ho(1,k,p) = NaN;
+                    MP(j).B.packing(1,k,p) = NaN;
                 end
             end
             clear mos_yr;
         else
             MP(j).B.ref(1,1:4,p) = NaN;
-            MP(j).B.Ho(zcutoff+1,1:4,p) = NaN;
-            MP(j).B.packing(zcutoff+1,1:4,p) = NaN;
+            MP(j).B.Ho(1,1:4,p) = NaN;
+            MP(j).B.packing(1,1:4,p) = NaN;
 
         end
         clear yr_idx;
@@ -848,10 +892,10 @@ for j = 1:length(MP)
     disp('extracted distributions');
 
     %load or create iceberg distribution profiles
-    if exist([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_seasonal-profiles.csv']) == 2
-        D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_seasonal-profiles.csv'],"VariableNamingRule","preserve");
+    if exist([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv']) == 2
+        D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
         size_plslope = table2array(D(:,2:end)); clear D;
-        D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_seasonal-profiles.csv'],"VariableNamingRule","preserve");
+        D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
         res_A = table2array(D(:,2:end)); clear D;
         %find the last binned seasonal distribution with data
         for k = 1:4
@@ -979,8 +1023,8 @@ for j = 1:length(MP)
         end
         column_names = ["Season", bin_slopename]; Tslopes.Properties.VariableNames = column_names; 
         column_names = ["Season", bin_residname]; Tres.Properties.VariableNames = column_names;
-        writetable(Tslopes,[root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_seasonal-profiles.csv']);
-        writetable(Tres,[root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_seasonal-profiles.csv']);
+        writetable(Tslopes,[root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv']);
+        writetable(Tres,[root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv']);
     end
     disp('Done extracting size distribution information')
 
@@ -1038,9 +1082,9 @@ for j = 1:length(MP)
                 %if no velocity for the first melange point, look one
                 %further down-fjord
                 if isnan(MP(j).B.dVdx(1,k,p)); MP(j).B.dVdx(1,k,p) = (diff([vel_seas(1+ref_adjust,k,p),vel_seas(3+ref_adjust,k,p)])./diff([vdist(1+ref_adjust),vdist(3+ref_adjust)]))/365; end
-                press = 0.5*rho_i*(1-(rho_i/rho_w))*9.81*MP(j).B.Ho(zcutoff+1,k,p);
-                MP(j).B.butt_Meng(zcutoff+1,k,p) = press*MP(j).B.packing(zcutoff+1,k,p)*MP(j).B.Ho(zcutoff+1,k,p);
-                MP(j).B.butt_Amundson(zcutoff+1,k,p) = (-2*(MP(j).B.Ho(zcutoff+1,k,p)*press*MP(j).B.dVdx(1,k,p))/((MP(j).B.dVdx(1,k,p)/0.3)+MP(j).B.dVdx(1,k,p)))+press*MP(j).B.Ho(zcutoff+1,k,p);
+                press = 0.5*rho_i*(1-(rho_i/rho_w))*9.81*MP(j).B.Ho(1,k,p);
+                MP(j).B.butt_Meng(1,k,p) = press*MP(j).B.packing(1,k,p)*MP(j).B.Ho(1,k,p);
+                MP(j).B.butt_Amundson(1,k,p) = (-2*(MP(j).B.Ho(1,k,p)*press*MP(j).B.dVdx(1,k,p))/((MP(j).B.dVdx(1,k,p)/0.3)+MP(j).B.dVdx(1,k,p)))+press*MP(j).B.Ho(1,k,p);
                 clear press dvdist_temp;
             end
         end
@@ -1050,7 +1094,7 @@ for j = 1:length(MP)
     %display characteristics
     disp([site_abbrev,' Melange Characteristics:'])
     disp(' Near-Terminus Thickness: m')
-    disp(['    winter = ',num2str(round(nanmean(MP(j).B.Ho(zcutoff+1,1,:)),1)),', spring = ',num2str(round(nanmean(MP(j).B.Ho(zcutoff+1,2,:)),1)),', summer = ',num2str(round(nanmean(MP(j).B.Ho(zcutoff+1,3,:)),1)),', fall = ',num2str(round(nanmean(MP(j).B.Ho(zcutoff+1,4,:)),1))]);
+    disp(['    winter = ',num2str(round(nanmean(MP(j).B.Ho(1,1,:)),1)),', spring = ',num2str(round(nanmean(MP(j).B.Ho(1,2,:)),1)),', summer = ',num2str(round(nanmean(MP(j).B.Ho(1,3,:)),1)),', fall = ',num2str(round(nanmean(MP(j).B.Ho(1,4,:)),1))]);
     for k = 1:4
         if ~isnan(MP(j).V.Vseas(k,1+ref_adjust))
             Vterm(k) = MP(j).V.Vseas(k,1+ref_adjust);
@@ -1072,7 +1116,7 @@ for j = 1:length(MP)
     disp([' Seaward size distribution reference location = ',num2str(round(((max(inland_idx)-seaward_meanidx+1)*transect_inc)/1000,1)),'km']);
     disp(' ');
     disp(' Near-Terminus Packing Density: fractional area')
-    disp(['    winter = ',num2str(round(nanmean(MP(j).B.packing(zcutoff+1,1,:)),2)),', spring = ',num2str(round(nanmean(MP(j).B.packing(zcutoff+1,2,:)),2)),', summer = ',num2str(round(nanmean(MP(j).B.packing(zcutoff+1,3,:)),2)),', fall = ',num2str(round(nanmean(MP(j).B.packing(zcutoff+1,4,:)),2))]);
+    disp(['    winter = ',num2str(round(nanmean(MP(j).B.packing(1,1,:)),2)),', spring = ',num2str(round(nanmean(MP(j).B.packing(1,2,:)),2)),', summer = ',num2str(round(nanmean(MP(j).B.packing(1,3,:)),2)),', fall = ',num2str(round(nanmean(MP(j).B.packing(1,4,:)),2))]);
     disp(' Near-Terminus Bergy Bit Overestimation: % Area')
     disp(['    winter = ',num2str(round(res_A(1,1),2)),', spring = ',num2str(round(res_A(2,1),2)),', summer = ',num2str(round(res_A(3,1),2)),', fall = ',num2str(round(res_A(4,1),2))]);
     disp(' Extension-Compression Strain Rate Change Location: km')
@@ -1082,26 +1126,26 @@ for j = 1:length(MP)
     disp(' ');
     disp(' Buttressing estimated using near-terminus observations:');
     disp('   Meng Eqn (thickness- & packing-based): x10^6 N/m');
-    disp(['    winter = ',num2str(round(nanmean(MP(j).B.butt_Meng(zcutoff+1,1,:))/10^6,2)),', spring = ',num2str(round(nanmean(MP(j).B.butt_Meng(zcutoff+1,2,:))/10^6,2)),', summer = ',num2str(round(nanmean(MP(j).B.butt_Meng(zcutoff+1,3,:))/10^6,2)),', fall = ',num2str(round(nanmean(MP(j).B.butt_Meng(zcutoff+1,4,:))/10^6,2))]);
+    disp(['    winter = ',num2str(round(nanmean(MP(j).B.butt_Meng(1,1,:))/10^6,2)),', spring = ',num2str(round(nanmean(MP(j).B.butt_Meng(1,2,:))/10^6,2)),', summer = ',num2str(round(nanmean(MP(j).B.butt_Meng(1,3,:))/10^6,2)),', fall = ',num2str(round(nanmean(MP(j).B.butt_Meng(1,4,:))/10^6,2))]);
     disp('   Amundson Eqn (thickness- & strainrate-based): x10^6 N/m');
-    disp(['    winter = ',num2str(round(nanmean(MP(j).B.butt_Amundson(zcutoff+1,1,:))/10^6,2)),', spring = ',num2str(round(nanmean(MP(j).B.butt_Amundson(zcutoff+1,2,:))/10^6,2)),', summer = ',num2str(round(nanmean(MP(j).B.butt_Amundson(zcutoff+1,3,:))/10^6,2)),', fall = ',num2str(round(nanmean(MP(j).B.butt_Amundson(zcutoff+1,4,:))/10^6,2))]);
+    disp(['    winter = ',num2str(round(nanmean(MP(j).B.butt_Amundson(1,1,:))/10^6,2)),', spring = ',num2str(round(nanmean(MP(j).B.butt_Amundson(1,2,:))/10^6,2)),', summer = ',num2str(round(nanmean(MP(j).B.butt_Amundson(1,3,:))/10^6,2)),', fall = ',num2str(round(nanmean(MP(j).B.butt_Amundson(1,4,:))/10^6,2))]);
     disp(' ');
-    BM_annual = [BM_annual; squeeze(MP(j).B.butt_Meng(zcutoff+1,1,:))./10^6, squeeze(MP(j).B.butt_Meng(zcutoff+1,2,:))./10^6, squeeze(MP(j).B.butt_Meng(zcutoff+1,3,:))./10^6, squeeze(MP(j).B.butt_Meng(zcutoff+1,4,:))./10^6];
-    BM_character = [BM_character; nanmean(MP(j).B.butt_Meng(zcutoff+1,1,:))/10^6, nanmean(MP(j).B.butt_Meng(zcutoff+1,2,:))/10^6, nanmean(MP(j).B.butt_Meng(zcutoff+1,3,:))/10^6, nanmean(MP(j).B.butt_Meng(zcutoff+1,4,:))/10^6];
-    BA_annual = [BA_annual; squeeze(MP(j).B.butt_Amundson(zcutoff+1,1,:))./10^6, squeeze(MP(j).B.butt_Amundson(zcutoff+1,2,:))./10^6, squeeze(MP(j).B.butt_Amundson(zcutoff+1,3,:))./10^6, squeeze(MP(j).B.butt_Amundson(zcutoff+1,4,:))./10^6];
-    BA_character = [BA_character; nanmean(MP(j).B.butt_Amundson(zcutoff+1,1,:))/10^6, nanmean(MP(j).B.butt_Amundson(zcutoff+1,2,:))/10^6, nanmean(MP(j).B.butt_Amundson(zcutoff+1,3,:))/10^6, nanmean(MP(j).B.butt_Amundson(zcutoff+1,4,:))/10^6];
+    BM_annual = [BM_annual; squeeze(MP(j).B.butt_Meng(1,1,:))./10^6, squeeze(MP(j).B.butt_Meng(1,2,:))./10^6, squeeze(MP(j).B.butt_Meng(1,3,:))./10^6, squeeze(MP(j).B.butt_Meng(1,4,:))./10^6];
+    BM_character = [BM_character; nanmean(MP(j).B.butt_Meng(1,1,:))/10^6, nanmean(MP(j).B.butt_Meng(1,2,:))/10^6, nanmean(MP(j).B.butt_Meng(1,3,:))/10^6, nanmean(MP(j).B.butt_Meng(1,4,:))/10^6];
+    BA_annual = [BA_annual; squeeze(MP(j).B.butt_Amundson(1,1,:))./10^6, squeeze(MP(j).B.butt_Amundson(1,2,:))./10^6, squeeze(MP(j).B.butt_Amundson(1,3,:))./10^6, squeeze(MP(j).B.butt_Amundson(1,4,:))./10^6];
+    BA_character = [BA_character; nanmean(MP(j).B.butt_Amundson(1,1,:))/10^6, nanmean(MP(j).B.butt_Amundson(1,2,:))/10^6, nanmean(MP(j).B.butt_Amundson(1,3,:))/10^6, nanmean(MP(j).B.butt_Amundson(1,4,:))/10^6];
 
     %combine site names, coordinates, and spring thickness+buttressing into a matrix
     %for exporting as a site summary CSV
     if ~contains(MP(j).name,'KBG')
         site_naming = [site_naming; geo_order(find(geo_ind==j)), geo_names(find(geo_ind==j))];
         PS_X = [PS_X; nanmean(MP(j).Z.termX)]; PS_Y = [PS_Y; nanmean(MP(j).Z.termY)];
-        if sum(~isnan(MP(j).B.butt_Amundson(zcutoff+1,2,:))) > 0
-            sp_stats = [sp_stats; nanmean(MP(j).B.Ho(zcutoff+1,2,:)),...
-                nanmean(cat(3,MP(j).B.butt_Meng(zcutoff+1,2,~isnan(MP(j).B.butt_Amundson(zcutoff+1,2,:))),MP(j).B.butt_Amundson(zcutoff+1,2,~isnan(MP(j).B.butt_Amundson(zcutoff+1,2,:)))),"all")/10^6];
+        if sum(~isnan(MP(j).B.butt_Amundson(1,2,:))) > 0
+            sp_stats = [sp_stats; nanmean(MP(j).B.Ho(1,2,:)),...
+                nanmean(cat(3,MP(j).B.butt_Meng(1,2,~isnan(MP(j).B.butt_Amundson(1,2,:))),MP(j).B.butt_Amundson(1,2,~isnan(MP(j).B.butt_Amundson(1,2,:)))),"all")/10^6];
         else
-            sp_stats = [sp_stats; nanmean(MP(j).B.Ho(zcutoff+1,2,:)),...
-                nanmean(MP(j).B.butt_Meng(zcutoff+1,2,:))/10^6];
+            sp_stats = [sp_stats; nanmean(MP(j).B.Ho(1,2,:)),...
+                nanmean(MP(j).B.butt_Meng(1,2,:))/10^6];
         end
     end
 
@@ -1125,14 +1169,14 @@ for j = 1:length(MP)
         bin_name(l) = {['Thickness (m): ',num2str(Hdist(l)),'m']};
     end
     column_names = ["Year","Season", bin_name]; TH.Properties.VariableNames = column_names;
-    writetable(TH,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-thickness-profiles.csv']);
+    writetable(TH,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-thickness-profiles_',num2str(zcutoff),'m-zcutoff.csv']);
     TP = [array2table(yrs_temp), array2table(seas_temp), array2table(pack_temp)];
     for l = 1:size(pack_temp,2)
         bin_name(l) = {['Packing density (%): ',num2str(Hdist(l)),'m']};
     end
     column_names = ["Year","Season", bin_name]; 
     TP.Properties.VariableNames = column_names;
-    writetable(TP,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-packing-profiles.csv']);
+    writetable(TP,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-packing-profiles_',num2str(zcutoff),'m-zcutoff.csv']);
     clear H_temp pack_temp bin_name;
     %speeds
     for p = 1:length(years)
@@ -1153,21 +1197,21 @@ for j = 1:length(MP)
     for p = 1:length(years)
         for k = 1:4
             if sum(~isnan(H_seas(:,k,p))) > 0 %will write a NAN profile for missing speed data for a DEM observation season
-                B_temp = [B_temp; round(MP(j).B.Ho(zcutoff+1,k,p),2),round(MP(j).B.packing(zcutoff+1,k,p),4),round(MP(j).B.butt_Meng(zcutoff+1,k,p),0),...
-                    round(MP(j).B.dVdx(1,k,p),7),round(MP(j).B.butt_Amundson(zcutoff+1,k,p),0)];
+                B_temp = [B_temp; round(MP(j).B.Ho(1,k,p),2),round(MP(j).B.packing(1,k,p),4),round(MP(j).B.butt_Meng(1,k,p),0),...
+                    round(MP(j).B.dVdx(1,k,p),7),round(MP(j).B.butt_Amundson(1,k,p),0)];
             end
         end
     end
     TB = [array2table(yrs_temp), array2table(seas_temp), array2table(B_temp)];
     column_names = ["Year","Season","Thickness (m)","Packing (fraction)","Buttressing-Meng (N/m)",...
         "Strainrate (1/d)","Buttressing-Amundson (N/m)"]; TB.Properties.VariableNames = column_names;
-    writetable(TB,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-buttressing.csv']);
+    writetable(TB,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-buttressing_',num2str(zcutoff),'m-zcutoff.csv']);
     clear B_temp yrs_temp seas_temp;
     clear TH TP TV TB;
     disp('Profiles and buttressing time series saved as CSVs')
 
     %save the matfile
-    save([root_dir,'GrIS-melange-characteristics.mat'],'MP','-v7.3');
+    save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
     
     %refresh
     clear berg_* bergdist* berg_normdist* C centerline* D Dsubs *idx seaward_* inland_* term_* tran_* size_classes Zfilt H_* Havg vel_* vels* v_mean w zdate berg_mo bins bin_no z_* pos pz pv *dist *yrs *mos seas_leg packing;
@@ -1180,7 +1224,8 @@ end
 TS = [array2table(site_naming), array2table(PS_X), array2table(PS_Y), array2table(sp_stats)]; %
 column_names = ["Site Abbreviation","Site Name","X (m): EPSG3413", "Y (m): EPSG3413","Melange thickness (m)","Melange buttressing (x10^6 N/m)" ]; %
 TS.Properties.VariableNames = column_names;
-writetable(TS,[root_dir,'GrIS-melange-sites.csv']);
+writetable(TS,[root_dir,'GrIS-melange-sites_',num2str(zcutoff),'m-zcutoff.csv']);
 clear TS;
 
-
+disp('Done compiling iceberg size distribution fits & buttressing estimates')
+close all;
