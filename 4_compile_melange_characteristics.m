@@ -14,7 +14,7 @@ root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
 %define custom parameters for size distributions
 transect_inc = 1000; %distance between transects along the centerline (meters)
 ARcomp.best.autoALL = 2; % iceberg aspect ratio 
-zthresh = 5; %cutoff elevation (m)
+zthresh = 3; %cutoff elevation (m)
 
 %Thickness parameters:
 zcutoff = zthresh; %elevation threshold below which to ignore icebergs (m)

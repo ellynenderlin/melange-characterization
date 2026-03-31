@@ -24,6 +24,10 @@ function [berg_dates,Havg,packing,inland_idx,seaward_idx,seaward_ext,H_seas,pack
 %H_seas = average thickness profile for each season (m)
 %pack_seas = average packing density profile for each season (m)
 
+%check that these constants match what was used to convert elevations to
+%thicknesses in "extract_automated_iceberg_DEM_distributions.m"
+rho_i = 900; rho_sw = 1026; %density of ice and sea water in kg/m^3 (constant)
+
 %loop through subset size distributions & find the first and last
 %non-NaN columns to identify melange extent
 Dsubs = dir([D_dir,site_abbrev,'*-iceberg-distribution-subsets.csv']);
@@ -37,13 +41,16 @@ for p = 1:length(Dsubs)
 
     %identify observational limits along the centerline
     berg_nos = table2array(D(:,3:end)); berg_nos(berg_nos==0) = NaN;
+    berg_sizes = ((rho_sw-rho_i)/rho_sw)*((2/WHratio)*sqrt(table2array(D(:,1))/pi())); dsize = round(nanmean(diff(berg_sizes)));
+    berg_maxz = berg_sizes+0.5*dsize; size_ind = find(berg_maxz <= zcutoff,1,'last');
     size_classes(p,:) = sum(~isnan(berg_nos),1);
     seaward_ext(p) = find(size_classes(p,:)>0,1,'first');
     inland_ext(p) = find(size_classes(p,:)>0,1,'last')+1;
 
     %create average thickness profile
-    Havg(p,:) = sum((2/WHratio)*sqrt(table2array(D(zcutoff+1:end,1))./pi()).*table2array(D(zcutoff+1:end,3:end)),1)./sum(table2array(D(zcutoff+1:end,3:end)),1);
-    packing(p,:) = sum(table2array(D(zcutoff+1:end,1)).*table2array(D(zcutoff+1:end,3:end)),1)./sum(table2array(D(:,1)).*table2array(D(:,3:end)),1);
+    Havg(p,:) = sum((2/WHratio)*sqrt(table2array(D(size_ind+1:end,1))./pi()).*table2array(D(size_ind+1:end,3:end)),1)./sum(table2array(D(size_ind+1:end,3:end)),1);
+    packing(p,:) = sum(table2array(D(size_ind+1:end,1)).*table2array(D(size_ind+1:end,3:end)),1)./sum(table2array(D(:,1)).*table2array(D(:,3:end)),1);
+    clear size_ind;
 end
 
 %assign seaward & inland sampling limits based on the selected sampling
