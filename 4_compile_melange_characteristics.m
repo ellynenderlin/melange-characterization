@@ -308,6 +308,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
         close(tebergAfig);
         save([root_dir,sitenames(j,:),'/',sitenames(j,:),'-melange-masks.mat'],'melmask','-v7.3');
 
+    else
 
         %add manual delineations from images
         cd([root_dir,site_abbrev,'/termini/']);
@@ -316,9 +317,19 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
         for l = 1:length(termfile_names)
             % load the shapefile
             % if ismember(termfiles(l).name,termfile_names)
-            term = shaperead(char(termfile_names(l)));
+            term = shaperead(char(termfile_names(l))); proj_check = 0;
             for k = 1:length(term)
                 term_date(k) = datenum(term(k).Date,'yyyy-mm-dd');
+                [xis,~] = polyxpoly(term(k).X,term(k).Y,MP(j).V.X,MP(j).V.Y);
+                if isempty(xis); proj_check = proj_check+1; end
+            end
+            %reproject data as needed (assuming conversion from EPSG4326 > EPSG3413)
+            if proj_check == length(term)
+                for k = 1:length(term)
+                    [x,y] = wgs2ps(term(k).X,term(k).Y) ;
+                    term(k).X = []; term(k).Y = [];
+                    term(k).X = x; term(k).Y = y; clear x y;
+                end
             end
             [~,idx] = sort(term_date);
             for k = 1:length(term)
@@ -370,8 +381,10 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
                 [xis,yis,iis] = polyxpoly(term(k).X,term(k).Y,MP(j).V.X,MP(j).V.Y);
                 MP(j).T.date(start_ref+k) = {char(YYYYMMDD(k))};
                 if ~isempty(xis)
+                    % disp(['terminus intersection saved for ',MP(j).T.date(start_ref+k)])
                     MP(j).T.termX(1,start_ref+k) = xis(end); MP(j).T.termY(1,start_ref+k) = yis(end);
                 else
+                    % disp(['no intersection with centerline for ',MP(j).T.date(start_ref+k)])
                     MP(j).T.termX(1,start_ref+k) = NaN; MP(j).T.termY(1,start_ref+k) = NaN;
                 end
                 clear xis yis iis;
@@ -383,7 +396,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
             % end
         end
 
-    else
+    
         %convert info previously saved to the structure (and reloaded) into vectors
         for p = 1:size(melmask.dated,2)
             zdate(p) = convert_to_decimaldate(char(MP(j).Z.date(p)));
@@ -735,7 +748,7 @@ for j = site_start:length(sitenames) %default: site_start:length(sitenames)
 end
 disp('Done compiling terminus position, elevation, and speed data')
 
-%% extract melange attributes, estimate buttressing, & make overview plots
+%% extract melange attributes & estimate buttressing
 close all; drawnow;
 
 % %If adding new dates, profiles need to be removed from the structure

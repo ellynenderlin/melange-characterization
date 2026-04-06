@@ -13,7 +13,7 @@ root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
 
 %define custom parameters for size distributions
 transect_inc = 1000; %distance between transects along the centerline (meters)
-zthresh = 1; %cutoff elevation (m)
+zthresh = 3; %cutoff elevation (m)
 
 %Thickness parameters:
 zcutoff = zthresh; %elevation threshold below which to ignore icebergs (m)
@@ -168,6 +168,11 @@ for j = 1:length(MP)
         D = readtable([root_dir,MP(j).name,'/',Dsubs(p).name],"VariableNamingRule","preserve");
         berg_datestrings(p,:) = Dsubs(p).name(length(site_abbrev)+2:length(site_abbrev)+9);
         byrs(p) = year(berg_dates(p)); bmos(p) = month(berg_dates(p));
+        if p == 1 %grab the bin size info from the first file (same in all files)
+            bHs = ((2/ARcomp.best.autoALL)*sqrt(table2array(D(:,1))/pi())); 
+            bhs = ((rho_sw-rho_i)/rho_sw)*bHs; dsize = round(nanmean(diff(bhs)));
+            berg_maxz = bhs+0.5*dsize; size_ind = find(berg_maxz <= zcutoff,1,'last');
+        end
 
         if ~isnan(inland_idx(p))
             %full size distributions at two points
@@ -206,7 +211,7 @@ for j = 1:length(MP)
             for k = 1:4
                 if ~isempty(ismember(mos_yr,seasons(k,:)))
                     bergdist_inland_seas(k,:,p) = nanmean(bi_temp(ismember(mos_yr,seasons(k,:))==1,:),1); %inland
-                    bergdist_sewaward_seas(k,:,p) = nanmean(bs_temp(ismember(mos_yr,seasons(k,:))==1,:),1); %seaward
+                    bergdist_seaward_seas(k,:,p) = nanmean(bs_temp(ismember(mos_yr,seasons(k,:))==1,:),1); %seaward
                 end
             end
 
@@ -214,12 +219,24 @@ for j = 1:length(MP)
         end
         clear yr_idx
     end
+
+    % %plot the thickness distributions for near the terminus
+    % if zcutoff == 3
+    %     Hdistfig = figure; set(gcf,'position',[600 600 400 400]);
+    %     for p = 1:size(bergdist_inland,1)
+    %     plot(bHs(size_ind:end),bergdist_inland(p,size_ind:end),'-k','linewidth',1.5); hold on;
+    %     end
+    % end
+    % figure(Hdistfig);
+    % disp('Check the thickness distributions make sense, then close the figure to advance'); disp(' ');
+    % uiwait %advance only after figure is closed
+
     %average the seasonal average datasets
     bergdist_seas = NaN(4,size(bergdist_inland,2),2);
     for k = 1:4
         if ~isempty(ismember(bmos,seasons(k,:)))
             bergdist_seas(k,:,1) = nanmean(bergdist_inland_seas(k,:,:),3); %inland
-            bergdist_seas(k,:,2) = nanmean(bergdist_sewaward_seas(k,:,:),3); %seaward
+            bergdist_seas(k,:,2) = nanmean(bergdist_seaward_seas(k,:,:),3); %seaward
         end
     end
     disp('extracted distributions');
@@ -809,13 +826,25 @@ exportgraphics(buttfig,[root_dir,'GrIS-melange_buttressing_',num2str(zcutoff),'m
 
 
 %% display the seasonal information for each site (GRL paper Table)
-disp('Seasonal statistics for all sites:')
+disp('Seasonal statistics for all sites:'); close all; drawnow;
 
-%loop through the range of zcutoff results & display composite results
+%locate all the results for different zcutoff values
 MPfiles = dir('GrIS-melange-characteristics_*m-zcutoff.mat'); 
 
+%create a colormap for the sensitivity test results
+zcut_cmap = [194,165,207; 118,42,131; 0,0,0; 27,120,55; 166,219,160]./255;
+
+%grab the data for each zctuoff, plot, & aggregate for stats
+zcutfig = figure; set(zcutfig,'position',[50 850 1200 600]);
+%sensitivity test results
+subH = subplot(2,2,1); subB = subplot(2,2,2); 
+ax1 = gca; ax2 = axes; set(ax2,'position',get(ax1,'position')); 
+%best results color-coded by season
+subHs = subplot(2,2,3); subBs = subplot(2,2,4); 
+ax1s = gca; ax2s = axes; set(ax2s,'position',get(ax1s,'position')); 
 for i = 1:length(MPfiles)
     load([root_dir,MPfiles(i).name]);
+    disp(MPfiles(i).name);
     for j = 1:length(geo_ind)
         %grab date info
         for p = 1:length(MP(geo_ind(j)).Z.date)
@@ -832,32 +861,50 @@ for i = 1:length(MPfiles)
 
         %seasonal DEM dates, near-terminus thickness, buttressing
         for k = 1:4
-            disp(['  ',char(season_names(k))]);
+            if i == 3
+                disp(['  ',char(season_names(k))]);
 
-            %DEM dates
-            seas_refs = find(ismember(zmos,seasons(k,:))==1);
-            if ~isempty(seas_refs)
-                date_cat = ['    '];
-                for p = 1:length(seas_refs)
-                    if p ~= 1
-                        date_cat = [date_cat,', ',dateout(seas_refs(p),:)];
-                    else
-                        date_cat = [date_cat,dateout(seas_refs(p),:)];
+                %DEM dates
+                seas_refs = find(ismember(zmos,seasons(k,:))==1);
+                if ~isempty(seas_refs)
+                    date_cat = ['    '];
+                    for p = 1:length(seas_refs)
+                        if p ~= 1
+                            date_cat = [date_cat,', ',dateout(seas_refs(p),:)];
+                        else
+                            date_cat = [date_cat,dateout(seas_refs(p),:)];
+                        end
                     end
+                    disp(date_cat)
                 end
-                disp(date_cat)
+                clear seas_refs;
             end
-            clear seas_refs;
 
             %near-terminus thickness
             % disp(['    thickness (m): ',num2str(round(nanmean(MP(geo_ind(j)).B.Ho(1,k,:)),1))]);
             H(i,j,k) = nanmean(MP(geo_ind(j)).B.Ho(1,k,:));
+            subplot(subH); %plot sensivity test results
+            plot(MP(geo_ind(j)).Z.dist/10^3,MP(geo_ind(j)).Z.Hseas(k,:),'-','linewidth',2,'color',zcut_cmap(i,:)); hold on;
+            if i == 3 %brute-force coding for the "best" zcutoff
+                subplot(subHs);
+                plot(MP(geo_ind(j)).Z.dist/10^3,MP(geo_ind(j)).Z.Hseas(k,:),'-','linewidth',2,'color',seas_cmap(k,:)); hold on;
+            end
 
             %buttressing
             % disp(['    packing-based buttressing (N/m): ',num2str(round(nanmean(MP(geo_ind(j)).B.butt_Meng(1,k,:))./10^6,2))]);
             % disp(['    strainrate-based buttressing (N/m): ',num2str(round(nanmean(MP(geo_ind(j)).B.butt_Amundson(1,k,:))./10^6,2))]);
             bM(i,j,k) = nanmean(MP(geo_ind(j)).B.butt_Meng(1,k,:))./10^6;
             bA(i,j,k) = nanmean(MP(geo_ind(j)).B.butt_Amundson(1,k,:))./10^6;
+            axes(ax1); %plot sensivity test results
+            scatter(100*squeeze(MP(geo_ind(j)).B.packing(1,k,:)),squeeze(MP(geo_ind(j)).B.Ho(1,k,:)),15+15*squeeze(MP(geo_ind(j)).B.butt_Meng(1,k,:))./10^6,zcut_cmap(i,:),'o','LineWidth',1.5); hold on;
+            axes(ax2);
+            scatter(365*squeeze(MP(geo_ind(j)).B.dVdx(1,k,:)),squeeze(MP(geo_ind(j)).B.Ho(1,k,:)),15+15*squeeze(MP(geo_ind(j)).B.butt_Amundson(1,k,:))./10^6,zcut_cmap(i,:),'x','LineWidth',1.5); hold on;
+            if i == 3 %brute-force coding for the "best" zcutoff
+                axes(ax1s);
+                scatter(100*squeeze(MP(geo_ind(j)).B.packing(1,k,:)),squeeze(MP(geo_ind(j)).B.Ho(1,k,:)),15+15*squeeze(MP(geo_ind(j)).B.butt_Meng(1,k,:))./10^6,seas_cmap(k,:),'o','LineWidth',1.5); hold on;
+                axes(ax2s);
+                scatter(365*squeeze(MP(geo_ind(j)).B.dVdx(1,k,:)),squeeze(MP(geo_ind(j)).B.Ho(1,k,:)),15+15*squeeze(MP(geo_ind(j)).B.butt_Amundson(1,k,:))./10^6,seas_cmap(k,:),'x','LineWidth',1.5); hold on;
+            end
         end
 
         clear zdate datest dateout zyrs zmos;
@@ -865,12 +912,87 @@ for i = 1:length(MPfiles)
 
     clear MP;
 end
+%format the overlain sensitivity test subplots
+ax2.XAxisLocation = 'top'; ax2.Color = 'none'; ax2.Box = 'on';
+ax2.XLim = 365*[-0.0025,0.0225]; ax2.XTick = 365*[-0.0025:0.0025:0.0225];
+ax2.XTickLabel = round(365*[-0.0025:0.0025:0.0225],2); Hylims = get(ax2,'ylim');
+ax1.FontSize = 16; ax2.FontSize = 16;
+ax2.XLabel.String = 'Strain rate (yr^{-1})'; ax2.XLabel.FontSize = 16;
+ax1.XLabel.String = 'Packing density (%)'; ax1.XLabel.FontSize = 16;
+ax1.YLabel.String = 'Thickness (m)'; ax1.YLabel.FontSize = 16;
+%format the overlain seasonal subplots for the best zcutoff
+ax2s.XAxisLocation = 'top'; ax2s.Color = 'none'; ax2s.Box = 'on';
+ax2s.XLim = 365*[-0.0025,0.0225]; ax2s.XTick = 365*[-0.0025:0.0025:0.0225];
+ax2s.XTickLabel = round(365*[-0.0025:0.0025:0.0225],2);
+ax1s.FontSize = 16; ax1s.YLim = Hylims; ax2s.FontSize = 16; ax2s.YLim = Hylims;
+ax2s.XLabel.String = 'Strain rate (yr^{-1})'; ax2s.XLabel.FontSize = 16;
+ax1s.XLabel.String = 'Packing density (%)'; ax1s.XLabel.FontSize = 16;
+ax1s.YLabel.String = 'Thickness (m)'; ax1s.YLabel.FontSize = 16;
+%adjust the thickness profile plots
+subplot(subH); grid on;
+set(gca,'fontsize',16); 
+ylabel('Thickness (m)','fontsize',16); xlabel('Distance from terminus (km)','fontsize',16); 
+pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)+0.05 pos(3) pos(4)]);
+axpos = get(ax1,'position');
+set(subH,'position',[0.15 axpos(2) axpos(3) axpos(4)]);
+ylims = get(subH,'ylim');
+axpos = get(ax1s,'position');
+subplot(subHs); grid on;
+set(subHs,'position',[0.15 axpos(2) axpos(3) axpos(4)]);
+set(subHs,'ylim',ylims,'fontsize',16);
+ylabel('Thickness (m)','fontsize',16); xlabel('Distance from terminus (km)','fontsize',16); 
+
+%ADD A LEGEND FOR SIZES & ONE FOR SHAPES
+saveas(zcutfig,[root_dir,'GrIS-melange-characteristics_sensitivity-plots.png'],'png'); %save the plots
+exportgraphics(zcutfig,[root_dir,'GrIS-melange-characteristics_sensitivity-plots.tif'],Resolution=600);
+
+
+%CREATE TIMESERIES OF BUTTRESSING FROM ALL DEMS FOR EACH SITE, NOT JUST
+%SEASONAL CHARACTERISTIC TIMESERIES, TO SEE IF THERE IS MORE OBVIOUS
+%SEASONALITY WHEN NOT AVERAGED OVER AS MANY MONTHS
+
+
 
 %display the statistics for all seasons at each site
+for j = 1:length(geo_ind)
+    %site abbreviation and name
+    disp(char(geo_names(j)));
+
+    for k = 1:4
+        if ~isnan(H(3,j,k))
+            disp([' ',char(season_names(k))]);
+            disp(['    thickness (m) = ',num2str(round(H(3,j,k),1)),' (',num2str(round(min(H(:,j,k)),1)),'-',num2str(round(max(H(:,j,k)),1)),')']);
+            disp(['    packing-based buttressing (10^6 N/m) = ',num2str(round(bM(3,j,k),2)),' (',num2str(round(min(bM(:,j,k)),2)),'-',num2str(round(max(bM(:,j,k)),2)),')']);
+            disp(['    strainrate-based buttressing (10^6 N/m) = ',num2str(round(bA(3,j,k),2)),' (',num2str(round(min(bA(:,j,k)),2)),'-',num2str(round(max(bA(:,j,k)),2)),')']);
+        end
+    end
+
+end
+
+
+%display relative differences in thickness & buttressing for the various
+%zcutoff values
+disp(['Fractional variability in thickness: ']);
+for k = 1:4
+    disp([char(season_names(k))]);
+    round(nanmean(H(:,:,k),2)./nanmean(H(3,:,k),2),2)
+end
+disp(['Fractional variability in packing-based buttressing: ']);
+for k = 1:4
+    disp([char(season_names(k))]);
+    round(nanmean(bM(:,:,k),2)./nanmean(bM(3,:,k),2),2)
+end
+disp(['Fractional variability in strain-based buttressing: ']);
+for k = 1:4
+    disp([char(season_names(k))]);
+    round(nanmean(bA(:,:,k),2)./nanmean(bA(3,:,k),2),2)
+end
 
 
 
 %% create terminus position plots
+load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+
 for j = 1:length(MP)
     site_abbrev = MP(j).name; disp(site_abbrev);
     close all; drawnow;
@@ -1015,57 +1137,112 @@ end
 %resave the data (as needed)
 save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
 
+%%
+
 %plot all the characteristic monthly seasonal terminus anomaly timeseries
 seasterm_fig = figure; set(seasterm_fig,'position',[50 50 1200 400]);
+sub1 = subplot(3,1,1); sub2 = subplot(3,1,2); sub3 = subplot(3,1,3);
 % term_cmap = [223,194,125; 125,125,125]./255; %shades of brown & gray
-term_cmap = [200,200,200; 0,0,0]./255; %shades of gray
+% term_cmap = colormap(gray(length(MP)));
+term_cmap = cmocean('phase',15);
+
+%normalize the data or keep as full anomalies?
+normterm = 0; %1 = normalize, 0 = raw
+
 %fill the background with seasonal colors
-fill([seasons(1,1),13,13,seasons(1,1),seasons(1,1)],[-1,-1,1,1,-1],seas_cmap(1,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
-fill([0,seasons(2,1),seasons(2,1),0,0],[-1,-1,1,1,-1],seas_cmap(1,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
-fill([seasons(2,1),seasons(3,1),seasons(3,1),seasons(2,1),seasons(2,1)],[-1,-1,1,1,-1],seas_cmap(2,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
-fill([seasons(3,1),seasons(4,1),seasons(4,1),seasons(3,1),seasons(3,1)],[-1,-1,1,1,-1],seas_cmap(3,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
-fill([seasons(4,1),seasons(1,1),seasons(1,1),seasons(4,1),seasons(4,1)],[-1,-1,1,1,-1],seas_cmap(4,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
+for k = 1:3
+    eval(['subplot(sub',num2str(k),');'])
+    if normterm == 1; yscale = 1; else; yscale = 2000; end
+    fill([seasons(1,1),13,13,seasons(1,1),seasons(1,1)],yscale*[-1,-1,1,1,-1],seas_cmap(1,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
+    fill([0,seasons(2,1),seasons(2,1),0,0],yscale*[-1,-1,1,1,-1],seas_cmap(1,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
+    fill([seasons(2,1),seasons(3,1),seasons(3,1),seasons(2,1),seasons(2,1)],yscale*[-1,-1,1,1,-1],seas_cmap(2,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
+    fill([seasons(3,1),seasons(4,1),seasons(4,1),seasons(3,1),seasons(3,1)],yscale*[-1,-1,1,1,-1],seas_cmap(3,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
+    fill([seasons(4,1),seasons(1,1),seasons(1,1),seasons(4,1),seasons(4,1)],yscale*[-1,-1,1,1,-1],seas_cmap(4,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
+    set(gca,'xlim',[1,13],'xtick',[],'fontsize',16); grid on;
+    if k == 2
+        ylabel('Normalized seasonal terminus anomaly','fontsize',16);
+    elseif k == 3
+        xlabel('Month','fontsize',16); 
+        set(gca,'xtick',[1:12]);
+    end
+end
 %plot the data on top
 pl_ref = 1;
-for j = 1:length(MP)
-    %decide the color for the line based on when it starts to retreat
-    if nanmean(MP(j).T.termanom_mo(3:4)) > nanmean(MP(j).T.termanom_mo(5:6))
-        cmap_ind = 1; %early retreater!
-    else
-        cmap_ind = 2; %summer retreater
-    end
-
-    % plot based on site size & timing of seasonal retreat
-    if ismember(MP(j).name,big3)
-        if cmap_ind == 1
-            plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'-','color',(pl_ref/5)*term_cmap(cmap_ind,:),'linewidth',3); hold on;
-            pl(pl_ref) = plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'d',...
-                'color',(pl_ref/5)*term_cmap(cmap_ind,:),'linewidth',1,'markerfacecolor',(pl_ref/5)*term_cmap(cmap_ind,:)); hold on;
-            site_ind(pl_ref) = strmatch(sitenames(j,:),geo_order); pl_ref = pl_ref+1;
+for j = 1:length(geo_ind)
+    if ~contains(MP(geo_ind(j)).name,'KBG')
+        disp(MP(geo_ind(j)).name)
+        %decide the color for the line based on when it starts to retreat
+        if nanmean(MP(geo_ind(j)).T.termanom_mo(4:5)) > 30+MP(geo_ind(j)).T.termanom_mo(6)
+            cmap_ind = 1; %early retreater!
         else
-            plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'--','color',term_cmap(cmap_ind,:),'linewidth',1); hold on;
-            plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'d',...
-                'color',term_cmap(cmap_ind,:),'linewidth',1,'markerfacecolor',term_cmap(cmap_ind,:)); hold on;
+            if MP(geo_ind(j)).T.termanom_mo(6) > 30+MP(geo_ind(j)).T.termanom_mo(7)
+                cmap_ind = 2; %June peak
+            else
+                cmap_ind = 3; %July peak
+            end
         end
-    else
-        if cmap_ind == 1
-            plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'-','color',(pl_ref/5)*term_cmap(cmap_ind,:),'linewidth',3); hold on;
-            pl(pl_ref) = plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'s',...
-                'color',(pl_ref/5)*term_cmap(cmap_ind,:),'linewidth',1,'markerfacecolor',(pl_ref/5)*term_cmap(cmap_ind,:)); hold on;
-            site_ind(pl_ref) = strmatch(sitenames(j,:),geo_order); pl_ref = pl_ref+1;
-        else
-            plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'--','color',term_cmap(cmap_ind,:),'linewidth',1); hold on;
-            plot([1:12]+0.5,MP(j).T.termanom_mo./max(abs(MP(j).T.termanom_mo)),'s',...
-                'color',term_cmap(cmap_ind,:),'linewidth',1,'markerfacecolor',term_cmap(cmap_ind,:)); hold on;
-        end
-    end
+        dbutt = round(100*nanmean(squeeze(MP(geo_ind(j)).B.butt_Meng(1,3,:)))./nanmean(squeeze(MP(geo_ind(j)).B.butt_Meng(1,2,:))));
+        if isnan(dbutt); dbutt = 1; end
+        if dbutt > 100; lstyle = '-'; else; lstyle = '--'; end
 
+        %normalize as needed
+        if normterm == 1
+            tanoms = MP(geo_ind(j)).T.termanom_mo./max(abs(MP(geo_ind(j)).T.termanom_mo));
+        else
+            tanoms = MP(geo_ind(j)).T.termanom_mo;
+        end
+
+
+        % plot based on site size & timing of seasonal retreat
+        if ismember(MP(geo_ind(j)).name,big3)
+            eval(['subplot(sub',num2str(cmap_ind),');'])
+            pl(pl_ref) = plot([1:12]+0.5,tanoms,'linestyle',lstyle,'color',term_cmap(j,:),'linewidth',2); hold on;
+                plot([1:12]+0.5,tanoms,'d',...
+                    'color',term_cmap(j,:),'linewidth',1,'markerfacecolor',term_cmap(j,:)); hold on;
+        else
+            eval(['subplot(sub',num2str(cmap_ind),');'])
+            pl(pl_ref) = plot([1:12]+0.5,tanoms,'linestyle',lstyle,'color',term_cmap(j,:),'linewidth',2); hold on;
+                plot([1:12]+0.5,tanoms,'s',...
+                    'color',term_cmap(j,:),'linewidth',1,'markerfacecolor',term_cmap(j,:)); hold on;
+        end
+        % site_ind(pl_ref) = strmatch(sitenames(j,:),geo_order);  
+        site_ind(pl_ref) = geo_ind(j);  pl_ref = pl_ref+1; clear tanoms;
+    end
 end
-term_leg = legend(pl,geo_names(site_ind));
-set(gca,'xlim',[1,13],'xtick',[1:12],'fontsize',16); grid on;
-xlabel('Month','fontsize',16); ylabel('Normalized seasonal terminus anomaly','fontsize',16);
-saveas(seasterm_fig,[root_dir,'GrIS-terminus-seasonal-anomalies_plot.png'],'png'); %save the plots
-exportgraphics(seasterm_fig,[root_dir,'GrIS-terminus-seasonal-anomalies_plot.tif'],Resolution=600);
+term_leg = legend(pl,geo_names); set(term_leg,'location','eastoutside'); 
+sub1pos = get(sub1,'position'); sub2pos = get(sub2,'position'); sub3pos = get(sub3,'position'); 
+set(sub2,'position',[sub2pos(1) sub2pos(2) 0.63 1.1*sub2pos(4)]);
+set(sub3,'position',[sub3pos(1) sub3pos(2) 0.63 1.1*sub3pos(4)]);
+%format y-limits
+for k = 1:3
+    eval(['subplot(sub',num2str(k),');']);
+    if normterm == 0
+        ylims = get(gca,'ylim');
+        if range(ylims) > 3000
+            set(gca,'ylim',[1000*floor(min(ylims)/1000),1000*ceil(max(ylims)/1000)],'ytick',[1000*floor(min(ylims)/1000):1000:1000*ceil(max(ylims)/1000)]);
+        else
+            set(gca,'ylim',[500*floor(min(ylims)/500),500*ceil(max(ylims)/500)],'ytick',[500*floor(min(ylims)/500):500:500*ceil(max(ylims)/500)]);
+        end
+    end
+
+    %add labels
+    if k == 1
+        text(1.1,min(get(gca,'ylim'))+0.15*range(get(gca,'ylim')),'a) April/May terminus maximum','fontsize',14); 
+    elseif k == 2
+        subplot(sub2); text(1.1,min(get(gca,'ylim'))+0.15*range(get(gca,'ylim')),'b) June terminus maximum','fontsize',14); 
+    else
+        subplot(sub3); text(1.1,min(get(gca,'ylim'))+0.15*range(get(gca,'ylim')),'c) July terminus maximum','fontsize',14);
+    end
+end
+legpos = get(term_leg,'position'); set(term_leg,'position',[legpos(1) 0.2 legpos(3) legpos(4)]);
+set(sub1,'position',[sub1pos(1) sub1pos(2) 0.63 1.1*sub1pos(4)]);
+if normterm == 1
+    saveas(seasterm_fig,[root_dir,'GrIS-terminus-seasonal-normanomalies_plot.png'],'png'); %save the plots
+    exportgraphics(seasterm_fig,[root_dir,'GrIS-terminus-seasonal-normanomalies_plot.tif'],Resolution=600);
+else
+    saveas(seasterm_fig,[root_dir,'GrIS-terminus-seasonal-anomalies_plot.png'],'png'); %save the plots
+    exportgraphics(seasterm_fig,[root_dir,'GrIS-terminus-seasonal-anomalies_plot.tif'],Resolution=600);
+end
 close all; 
 clear pl term_cmap site_ind;
 disp('Done plotting terminus timeseries');

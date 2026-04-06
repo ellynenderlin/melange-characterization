@@ -6,11 +6,11 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/');
 %site-specific parameters below before each rerun)
 
 %site-specific info
-root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
-site_abbrev = 'ULS'; site_name = 'Ullip';
-im_dir = [root_dir,site_abbrev,'/images/S2/'];
-% ref_image = 'S2A_21XWC_20180304_0_L2A_B08_clipped.tif'; %Alison = 'S2A_21XWC_20200731_1_L2A_B08_clipped.tif', %Zachariae = 'S2A_27XWH_20200802_3_L2A_B08_clipped.tif'
-% ref_image  = 'S2A_22WEB_20190216_0_L2A_B08_clipped.tif'; %SEK
+% root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
+root_dir = '/Users/ellynenderlin/Research/NASA_CryoIdaho/glaciers/';
+site_abbrev = 'Wolverine'; site_name = 'Wolverine';
+% im_dir = [root_dir,site_abbrev,'/images/S2/'];
+im_dir = [root_dir,site_abbrev,'/imagery/S2/'];
 disp(['Creating S2 image gif for ',site_abbrev]);
 
 %adjust the time separation between images as needed (will crash if memory is exceeded!)
@@ -25,8 +25,15 @@ end
 % ims = dir([im_dir,'S*B08_clipped.tif']); im_refs = []; im_dates = [];
 ims = dir([im_dir,'S*_clipped.tif']); im_refs = []; im_dates = [];
 for k = 1:length(ims)
-    im_dates = [im_dates; ims(k).name(11:18)];
-    if contains(ims(k).name,'_2019') || str2num(ims(k).name(11:14)) >= 2020
+    name_split = split(ims(k).name,'_',2);
+    if length(char(name_split(2))) ==5
+        im_dates = [im_dates; ims(k).name(11:18)];
+    else
+        im_dates = [im_dates; ims(k).name(10:17)];
+    end
+
+
+    if contains(ims(k).name,'_2019') || str2num(im_dates(k,1:4)) >= 2020
         im_refs = [im_refs; k]; 
     end
 end
