@@ -14,7 +14,7 @@ root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
 %define custom parameters for size distributions
 transect_inc = 1000; %distance between transects along the centerline (meters)
 ARcomp.best.autoALL = 2; % iceberg aspect ratio 
-zthresh = 3; %cutoff elevation (m)
+zthresh = 5; %cutoff elevation (m)
 
 %Thickness parameters:
 zcutoff = zthresh; %elevation threshold below which to ignore icebergs (m)
@@ -85,17 +85,17 @@ if ~isempty(dir([root_dir,'GrIS-melange-characteristics_*m-zcutoff.mat']))
     %reload complete dataset if desired
     if exist([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']) == 2
         restarting = questdlg('Reload the existing centerline data to add more sites?',...
-            'data reload','1) Yes: restarting','2) No: start fresh','1) Yes: starting');
+            'data reload','1) Yes: restarting','2) No: start fresh','1) Yes: restarting');
         switch restarting
-            case '1) Yes: starting'
+            case '1) Yes: restarting'
                 load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
                 if length(MP) < size(sitenames,1)
-                    site_start = length(MP)+1;
+                    site_start = length(MP)+1; reload = 'Yes';
                     disp(['...restarting on site #',num2str(site_start),' (',sitenames(site_start,:),')']);
                 else
+                    site_start = 1; reload = 'Yes';
                     error('data reloaded and dataset is fully processed');
                 end
-                reload = 'Yes';
             case '2) No: start fresh'
                 site_start = 1;
                 MP = struct;

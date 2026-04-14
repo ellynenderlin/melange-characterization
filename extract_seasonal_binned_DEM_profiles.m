@@ -42,7 +42,7 @@ for p = 1:length(Dsubs)
     %identify observational limits along the centerline
     berg_nos = table2array(D(:,3:end)); berg_nos(berg_nos==0) = NaN;
     berg_sizes = ((rho_sw-rho_i)/rho_sw)*((2/WHratio)*sqrt(table2array(D(:,1))/pi())); dsize = round(nanmean(diff(berg_sizes)));
-    berg_maxz = berg_sizes+0.5*dsize; size_ind = find(berg_maxz <= zcutoff,1,'last');
+    berg_maxz = berg_sizes+0.5*dsize; size_ind = find(floor(berg_maxz) <= zcutoff,1,'last'); %round the size class down to the nearest integer to correct rounding error
     size_classes(p,:) = sum(~isnan(berg_nos),1);
     seaward_ext(p) = find(size_classes(p,:)>0,1,'first');
     inland_ext(p) = find(size_classes(p,:)>0,1,'last')+1;
@@ -86,6 +86,7 @@ elseif contains(sampling,'date')
 else
     error('Profile sampling strategy is not properly defined: sampling must be ''fixed'' or ''dated''')
 end
+term_flag = find(inland_idx ~= inland_ext);
 
 %create an annual average seasonal thickness profile
 % Zfilt = MP(j).Z.transectZavg; Zfilt(MP(j).Z.transectZavg==0) = NaN; Zfilt(:,term_trace==0) = NaN;
@@ -101,11 +102,16 @@ for p = 1:length(years)
         pack_profiles = NaN(length(yr_idx),max(inland_idx)-1);
         for k = 1:length(yr_idx)
             if ~isnan(inland_idx(yr_idx(k)))
-                % z_temp = flipud(Zfilt(1:inland_idx(yr_idx(k))-1,yr_idx(k)));
+                if isnan(Havg(yr_idx(k),inland_idx(yr_idx(k))-1)) && ~ismember(yr_idx(k),term_flag)
+                    H_temp = fliplr(Havg(yr_idx(k),1:inland_idx(yr_idx(k))-2));
+                    pack_temp = fliplr(packing(yr_idx(k),1:inland_idx(yr_idx(k))-2));
+                else
+                    % z_temp = flipud(Zfilt(1:inland_idx(yr_idx(k))-1,yr_idx(k)));
+                    H_temp = fliplr(Havg(yr_idx(k),1:inland_idx(yr_idx(k))-1));
+                    pack_temp = fliplr(packing(yr_idx(k),1:inland_idx(yr_idx(k))-1));
+                end
                 % z_profiles(1:length(z_temp),k) = z_temp;
-                H_temp = fliplr(Havg(yr_idx(k),1:inland_idx(yr_idx(k))-1));
                 H_profiles(k,1:length(H_temp)) = H_temp;
-                pack_temp = fliplr(packing(yr_idx(k),1:inland_idx(yr_idx(k))-1));
                 pack_profiles(k,1:length(pack_temp)) = pack_temp;
                 clear H_temp pack_temp; %clear z_temp;
             end
