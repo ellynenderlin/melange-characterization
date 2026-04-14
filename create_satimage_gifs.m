@@ -8,7 +8,7 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/');
 %site-specific info
 % root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
 root_dir = '/Users/ellynenderlin/Research/NASA_CryoIdaho/glaciers/';
-site_abbrev = 'Wolverine'; site_name = 'Wolverine';
+site_abbrev = 'Gulkana'; site_name = 'Gulkana';
 % im_dir = [root_dir,site_abbrev,'/images/S2/'];
 im_dir = [root_dir,site_abbrev,'/imagery/S2/'];
 disp(['Creating S2 image gif for ',site_abbrev]);
@@ -32,7 +32,7 @@ for k = 1:length(ims)
         im_dates = [im_dates; ims(k).name(10:17)];
     end
 
-
+    %filter dates by year
     if contains(ims(k).name,'_2019') || str2num(im_dates(k,1:4)) >= 2020
         im_refs = [im_refs; k]; 
     end
