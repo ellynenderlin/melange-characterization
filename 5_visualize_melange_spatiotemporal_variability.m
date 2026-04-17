@@ -542,7 +542,7 @@ for j = 1:length(MP)
         clear ylims yticks;
     end
     gca_pos = get(gca,'position');
-    set(gca,'position',[gca_pos(1) gca_pos(2) gca_pos(3) 1.5*gca_pos(4)]);
+    set(gca,'position',[gca_pos(1) gca_pos(2) gca_pos(3) 1.4*gca_pos(4)]);
     drawnow; clear plot_ind pv pV;
     
     %add subplots that generally show the location of the size distributions
@@ -933,11 +933,14 @@ for j = 1:length(MP)
             before_idx = find(term_decidates_sorted<zdate(p),1,'last');
             after_idx = find(term_decidates_sorted>zdate(p),1,'first');
             subplot(sub2); 
-            semilogx(butt_Meng(p),(-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx)/abs(zdate(p)-term_decidates_sorted(before_idx))))/365,'sk'); hold on; %minus sign to make retreat negative
-            semilogx(butt_Meng(p),((MP(j).Z.termdist(p)-term_dists_sorted(after_idx)/abs(zdate(p)-term_decidates_sorted(after_idx))))/365,'+k'); hold on; %later date minus earlier date so no negative needed
+            pb(1) = semilogx(butt_Meng(p),(-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx))/abs(zdate(p)-term_decidates_sorted(before_idx)))/365,...
+                'sk','markerfacecolor',seas_cmap(zseas(p),:)); hold on; %minus sign to make retreat negative
+            pb(2) = semilogx(butt_Meng(p),((MP(j).Z.termdist(p)-term_dists_sorted(after_idx))/abs(zdate(p)-term_decidates_sorted(after_idx)))/365,...
+                'dk','markerfacecolor',seas_cmap(zseas(p),:)); hold on; %later date minus earlier date so no negative needed
             clear before_idx after_idx;
         end
     end
+    pb_leg = legend(pb,'before','after')
     drawnow;
     clear term*sorted ic;
 
@@ -962,7 +965,7 @@ for j = 1:length(MP)
     set(gca,'xlim',[min(years) max(years)],'fontsize',16); grid on;
     xlabel('Year','fontsize',16); ylabel('Buttressing (10^6 N/m)','fontsize',16); 
 
-    %add the buttressing data to the timeseries plot as bar graphs
+    %overlay the terminus position timeseries
     yyaxis right; axr = gca;
     for p = 1:length(MP(j).T.date)
         %add dummy plot for the legend
@@ -1031,6 +1034,20 @@ for j = 1:length(MP)
                 ax1.YAxis(1).Label.Position = [2009.4 3.5 -1];
             end
         end
+        %crop the y-axis as needed & label bars that extend off the limit
+        ylims = get(gca,'ylim'); if max(ylims) > 5; set(gca,'ylim',[0 5]); end
+        bM_outlier = find(butt_Meng > 5e6); bA_outlier = find(butt_Amundson > 5e6);
+        if ~isempty(bM_outlier)
+            if isempty(bA_outlier) %strain-based buttressing data fit in y-axis
+                text(zdate(bM_outlier),5.125,num2str(round(butt_Meng(bM_outlier)/10^6,1)),'fontsize',12,'color',seas_cmap(zseas(bM_outlier),:));
+                text(zdate(bM_outlier)+1,5.625,'x10^6','fontsize',12,'color','k');
+            else %both buttressing estimates exceed y-limits and need to be plotted
+                text(zdate(bM_outlier)-1.2,5.625,'(     ,     )x10^6','fontsize',12,'color','k');
+                text(zdate(bM_outlier)-0.9,5.5,num2str(round(butt_Meng(bM_outlier)/10^6,0)),'fontsize',12,'color',seas_cmap(zseas(bM_outlier),:));
+                text(zdate(bA_outlier)+0.1,5.5,num2str(round(butt_Amundson(bA_outlier)/10^6,0)),'fontsize',12,'color',seas_cmap(zseas(bA_outlier),:));
+            end
+        end
+        clear b*_outlier ylims;
 
         %plot the terminus timeseries
         yyaxis right; axr = gca;
@@ -1069,16 +1086,16 @@ for j = 1:length(MP)
         pos = get(gca,'position');
         %add the legend
         if plot_locs(plot_ind) == 2
-            term_leg = legend(pterm,season_names,'Location','northoutside',...
+            term_leg = legend(pterm,season_names,'Location','southoutside',...
                 'Orientation','horizontal');
         end
         %shift plot locations
         if mod(plot_locs(plot_ind),3) == 0
-            set(gca,'position',[pos(1)-0.02 pos(2) pos(3)+0.04 pos(4)]);
+            set(gca,'position',[pos(1)-0.02 pos(2) 0.24 1.1*pos(4)]);
         elseif mod(plot_locs(plot_ind),3) == 2
-            set(gca,'position',[pos(1)-0.04 pos(2) pos(3)+0.04 pos(4)]);
+            set(gca,'position',[pos(1)-0.04 pos(2) 0.24 1.1*pos(4)]);
         else
-            set(gca,'position',[pos(1)-0.06 pos(2) pos(3)+0.04 pos(4)]);
+            set(gca,'position',[pos(1)-0.06 pos(2) 0.24 1.1*pos(4)]);
         end
 
     end
@@ -1400,11 +1417,11 @@ for j = 1:length(MP)
         im.z = double(I(:,:,2:4));
     end
     %crop the image to adjust brightnesses appropriately
-    xlims = [find(im.x<=min(melmask.uncropped.x),1,'last')-500/R.CellExtentInWorldX, find(im.x<=max(melmask.uncropped.x),1,'last')+500/R.CellExtentInWorldX];
-    ylims = [find(im.y>=max(melmask.uncropped.y),1,'last')-500/R.CellExtentInWorldY, find(im.y<=min(melmask.uncropped.y),1,'first')+500/R.CellExtentInWorldY];
-    xlims(xlims<1) = 1; xlims(xlims>length(im.x)) = length(im.x);
-    ylims(ylims<1) = 1; ylims(ylims>length(im.y)) = length(im.y);
-    im_subset = im.z(min(ylims):max(ylims),min(xlims):max(xlims),:);
+    xinds = [find(im.x<=min(melmask.uncropped.x),1,'last')-500/R.CellExtentInWorldX, find(im.x<=max(melmask.uncropped.x),1,'last')+500/R.CellExtentInWorldX];
+    yinds = [find(im.y>=max(melmask.uncropped.y),1,'last')-500/R.CellExtentInWorldY, find(im.y<=min(melmask.uncropped.y),1,'first')+500/R.CellExtentInWorldY];
+    xinds(xinds<1) = 1; xinds(xinds>length(im.x)) = length(im.x);
+    yinds(yinds<1) = 1; yinds(yinds>length(im.y)) = length(im.y);
+    im_subset = im.z(min(yinds):max(yinds),min(xinds):max(xinds),:);
     im_subset = im_subset./max(max(im_subset));
     clear I R;
 
@@ -1441,9 +1458,19 @@ for j = 1:length(MP)
     for l = 1:length(termfile_names)
         % load the shapefile
         % if ismember(termfiles(l).name,termfile_names)
-        term = shaperead(char(termfile_names(l)));
+        term = shaperead(char(termfile_names(l))); proj_check = 0;
         for k = 1:length(term)
             term_date(k) = datenum(term(k).Date,'yyyy-mm-dd');
+            [xis,~] = polyxpoly(term(k).X,term(k).Y,MP(j).V.X,MP(j).V.Y);
+            if isempty(xis); proj_check = proj_check+1; end
+        end
+        %reproject data as needed (assuming conversion from EPSG4326 > EPSG3413)
+        if proj_check == length(term)
+            for k = 1:length(term)
+                [x,y] = wgs2ps(term(k).X,term(k).Y) ;
+                term(k).X = []; term(k).Y = [];
+                term(k).X = x; term(k).Y = y; clear x y;
+            end
         end
         [~,idx] = sort(term_date);
         for k = 1:length(term)
@@ -1532,8 +1559,8 @@ for j = 1:length(MP)
 
     %create an overview map
     map_fig = figure; set(map_fig,'position',[850 50 900 800]); ax1 = axes;
-    % imagesc(ax1,im.x(min(xlims):max(xlims)),im.y(min(ylims):max(ylims)),imadjust(im_subset,[],[])); axis xy equal; 
-    imagesc(ax1,im.x(min(xlims):max(xlims)),im.y(min(ylims):max(ylims)),im_subset); axis xy equal; 
+    % imagesc(ax1,im.x(min(xinds):max(xinds)),im.y(min(yinds):max(yinds)),imadjust(im_subset,[],[])); axis xy equal; 
+    imagesc(ax1,im.x(min(xinds):max(xinds)),im.y(min(yinds):max(yinds)),im_subset); axis xy equal; 
     colormap(ax1,'gray'); drawnow; hold on;
     set(ax1,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
     %plot dummy lines to create a legend
@@ -1545,7 +1572,7 @@ for j = 1:length(MP)
 
     %melange extent plotting: option 1 = plot the number of iceberg observations at each point to outline the
     %extent of the melange (instead of using melmask polygon)
-    imx = single(im.x(min(xlims):max(xlims))); imy = single(im.y(min(ylims):max(ylims)));
+    imx = single(im.x(min(xinds):max(xinds))); imy = single(im.y(min(yinds):max(yinds)));
     [Xgrid,Ygrid] = meshgrid(imx,imy); %convert the vector coordinates into matrices
 
     %loop through the DEMs & create a DEM mosaic
@@ -1567,12 +1594,13 @@ for j = 1:length(MP)
         % colormap gray;
 
         %interpolate to the cropped Landsat image
+        mel_z(:,:,p) = single(interp2(ZXgrid,ZYgrid,double(maskedz),Xgrid,Ygrid));
         mel_data(:,:,p) = single(interp2(ZXgrid,ZYgrid,double(DEMmask),Xgrid,Ygrid)); %interpolate elevations to the Landsat 8 coordinates
         clear Z* M DEMmask maskedz in;
     end
-    melange_obs = sum(mel_data,3,"omitnan"); 
+    melange_obs = sum(mel_data,3,"omitnan"); melange_z = (1026/(1026-917))*mean(mel_z,3,"omitnan"); 
     meltrans = melange_obs; meltrans(meltrans>0) = 1;
-    % elev_cmap = cmocean('thermal',p); 
+    z_cmap = cmocean('thermal',201); z_cmap(1,:) = [1 1 1];
     % % elev_cmap = colormap(pink(p)); 
     white_end = [231,212,232]/255; purple_end = [64,0,75]/255; colorgrad = (white_end-purple_end)/(p+1);
     for k = 1:p+1
@@ -1580,56 +1608,63 @@ for j = 1:length(MP)
     end
     % elev_cmap(1,:) = [1 1 1]; %white
 
-    %plot the time-averaged DEM & redraw the melange mask
+    %plot the frequency of iceberg observations
     % figure1 = figure; set(gcf,'position',[50 50 1600 600]);
     ax2 = axes; 
-    implot = imagesc(ax2,imx,imy,melange_obs/p,'AlphaData', meltrans); axis xy equal; hold on;
-    colormap(ax2,elev_cmap); set(ax2,'color','none','visible','off');
-    cbar = colorbar; cbar.YLabel.String = 'Iceberg cover frequency';
+    implot = imagesc(ax2,imx,imy,melange_z,'AlphaData', meltrans); axis xy equal; hold on;
+    colormap(ax2,z_cmap); set(ax2,'color','none','visible','off'); set(gca,'clim',[0 200]);
+    cbar = colorbar; cbar.YLabel.String = 'Average thickness (m)';
+    % implot = imagesc(ax2,imx,imy,melange_obs/p,'AlphaData', meltrans); axis xy equal; hold on;
+    % colormap(ax2,elev_cmap); set(ax2,'color','none','visible','off');
+    % cbar = colorbar; cbar.YLabel.String = 'Iceberg cover frequency';
     cbar.FontSize = map_font-4; cbar.Location = "eastoutside";
     colormap(ax1,'gray');
     linkaxes([ax1 ax2]);
-    % plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
-    clear imx imy Xgrid Ygrid DEMmask;
+    plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
+    
 
-    %melange extent plotting: option 2 = plot faint colored boxes for the DEM binning
-    % for k = min(seaward_ext):max(inland_ext)
-    %     fill([MP(j).Z.transectX(k,1),MP(j).Z.transectX(k,2),MP(j).Z.transectX(k+1,2),MP(j).Z.transectX(k+1,1),MP(j).Z.transectX(k,1)],...
-    %         [MP(j).Z.transectY(k,1),MP(j).Z.transectY(k,2),MP(j).Z.transectY(k+1,2),MP(j).Z.transectY(k+1,1),MP(j).Z.transectY(k,1)],...
-    %         tran_cmap(k-min(seaward_ext)+1,:),'FaceAlpha',0.5,'EdgeColor','none'); hold on;
-    % end
+    %melange extent plotting
+    for k = min(seaward_ext):max(inland_ext)+2
+        %plot faint colored boxes for the DEM binning
+        % fill([MP(j).Z.transectX(k,1),MP(j).Z.transectX(k,2),MP(j).Z.transectX(k+1,2),MP(j).Z.transectX(k+1,1),MP(j).Z.transectX(k,1)],...
+        %     [MP(j).Z.transectY(k,1),MP(j).Z.transectY(k,2),MP(j).Z.transectY(k+1,2),MP(j).Z.transectY(k+1,1),MP(j).Z.transectY(k,1)],...
+        %     tran_cmap(k-min(seaward_ext)+1,:),'FaceAlpha',0.5,'EdgeColor','none'); hold on;
+        %plot box edges
+        plot([MP(j).Z.transectX(k,1),MP(j).Z.transectX(k,2)],[MP(j).Z.transectY(k,1),MP(j).Z.transectY(k,2)],'--k','linewidth',2);
+    end
 
-    %plot the terminus positions
-    termdists = MP(j).Z.termdist; termdists(term_trace == 0) = NaN;
-    [~,maxind] = max(termdists); [~,minind] = min(termdists);
-    plot(ax2,melmask.dated(minind).x,melmask.dated(minind).y,'-','color',[90,174,97]/255,'linewidth',3); hold on;
-    plot(ax2,melmask.dated(maxind).x,melmask.dated(maxind).y,'-','color',[90,174,97]/255,'linewidth',3); hold on;
-    disp('plotted min & max centerline terminus positions in green');
-    % for p = 1:size(melmask.dated,2)
-    %     if term_trace(p) == 1
-    %         plot(melmask.dated(p).x,melmask.dated(p).y,'-','color',...
-    %             'k','linewidth',1.5); hold on;
-    %         % plot(melmask.dated(p).x,melmask.dated(p).y,'-','color',...
-    %         %     seas_cmap(zseas(p),:),'linewidth',1.5); hold on;
-    %         drawnow;
-    %     end
-    % end
-    % for k = 1:length(T)
-    %     if Tyrs(k) >= min(zyrs) && Tyrs(k) <= max(zyrs)
-    %     in = inpolygon(T(k).X,T(k).Y,melmask.uncropped.x,melmask.uncropped.y);
-    %     % plot(MP(j).T.X(in),MP(j).T.Y(in),'-','color',...
-    %     %     yr_cmap(Tyrs(k)-min(years)+1,:),'linewidth',1.5); hold on;
-    %     plot(T(k).X(in),T(k).Y(in),'-','color',...
-    %         seas_cmap(Tseas(k),:),'linewidth',1.5); hold on;
-    %     clear in; drawnow;
-    %     end
-    % end
+    % %plot the terminus positions
+    % termdists = MP(j).Z.termdist; termdists(term_trace == 0) = NaN;
+    % [~,maxind] = max(termdists); [~,minind] = min(termdists);
+    % plot(ax2,melmask.dated(minind).x,melmask.dated(minind).y,'-','color',[90,174,97]/255,'linewidth',3); hold on;
+    % plot(ax2,melmask.dated(maxind).x,melmask.dated(maxind).y,'-','color',[90,174,97]/255,'linewidth',3); hold on;
+    % disp('plotted min & max centerline terminus positions in green');
+    % % for p = 1:size(melmask.dated,2)
+    % %     if term_trace(p) == 1
+    % %         plot(melmask.dated(p).x,melmask.dated(p).y,'-','color',...
+    % %             'k','linewidth',1.5); hold on;
+    % %         % plot(melmask.dated(p).x,melmask.dated(p).y,'-','color',...
+    % %         %     seas_cmap(zseas(p),:),'linewidth',1.5); hold on;
+    % %         drawnow;
+    % %     end
+    % % end
+    % % for k = 1:length(T)
+    % %     if Tyrs(k) >= min(zyrs) && Tyrs(k) <= max(zyrs)
+    % %     in = inpolygon(T(k).X,T(k).Y,melmask.uncropped.x,melmask.uncropped.y);
+    % %     % plot(MP(j).T.X(in),MP(j).T.Y(in),'-','color',...
+    % %     %     yr_cmap(Tyrs(k)-min(years)+1,:),'linewidth',1.5); hold on;
+    % %     plot(T(k).X(in),T(k).Y(in),'-','color',...
+    % %         seas_cmap(Tseas(k),:),'linewidth',1.5); hold on;
+    % %     clear in; drawnow;
+    % %     end
+    % % end
+
     %add centerline & transect locations
-    plot(ax2,MP(j).V.X(min(seaward_ext):max(inland_ext)+1),MP(j).V.Y(min(seaward_ext):max(inland_ext)+1),'-k','linewidth',2); hold on;
+    plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'-k','linewidth',2); hold on;
     if contains(big3,MP(j).name)
-        plot(ax2,MP(j).V.X(min(seaward_ext):max(inland_ext)+1),MP(j).V.Y(min(seaward_ext):max(inland_ext)+1),'dk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
+        plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'dk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
     else
-        plot(ax2,MP(j).V.X(min(seaward_ext):max(inland_ext)+1),MP(j).V.Y(min(seaward_ext):max(inland_ext)+1),'sk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
+        plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'sk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
     end
     set(ax2,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
     % xlims = [min(MP(j).Z.transectX(min(seaward_ext):max(inland_ext)+1,:),[],'all'), max(MP(j).Z.transectX(min(seaward_ext):max(inland_ext)+1,:),[],'all')];
@@ -1668,24 +1703,66 @@ for j = 1:length(MP)
     end
     saveas(map_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-',suffix,'.png'],'png'); %save the image
     exportgraphics(map_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-',suffix,'.tif'],Resolution=600);
+    close(map_fig);
     % uiwait %advance only after figure is closed
 
     %for Alison Glacier for 20110610, create a two subpanel figure to
     %demonstrate how packing density and the bergy bit misfit are
     %calculated with the map on the top & the size distribution on the bottom
     if contains(MP(j).name,'ASG')
-        ex_fig = figure; set(ex_fig,'position',[950 50 450 500]); 
-        subm = subplot(2,1,1); 
+        ex_fig = figure; set(ex_fig,'position',[950 50 450 1000]);
 
-        %load the DEM of interest
+        %reproduce the site overview map
+        subo = subplot(3,1,1);
+        %plot the image
+        imagesc(subo,im.x(min(xinds):max(xinds)),im.y(min(yinds):max(yinds)),im_subset); axis xy equal;
+        colormap(subo,'gray'); drawnow; hold on;
+        set(subo,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
+        subo_pos = get(gca,'position');
+        %add the average thickness
+        ax2 = axes;
+        implot = imagesc(ax2,imx,imy,melange_z,'AlphaData', meltrans); axis xy equal; hold on;
+        colormap(ax2,z_cmap); set(ax2,'color','none','visible','off'); set(gca,'clim',[0 200]);
+        cbar = colorbar; cbar.YLabel.String = 'Average thickness (m)';
+        cbar.FontSize = 12; cbar.Location = "eastoutside";
+        colormap(subo,'gray');
+        linkaxes([subo ax2]);
+        plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
+        %melange extent plotting
+        for k = min(seaward_ext):max(inland_ext)+2
+            plot([MP(j).Z.transectX(k,1),MP(j).Z.transectX(k,2)],[MP(j).Z.transectY(k,1),MP(j).Z.transectY(k,2)],'--k','linewidth',2);
+        end
+        %add centerline & transect locations
+        plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'-k','linewidth',2); hold on;
+        if contains(big3,MP(j).name)
+            plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'dk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
+        else
+            plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'sk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
+        end
+        set(ax2,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
+        xlims = get(gca,'xlim'); ylims = get(gca,'ylim');
+        xticks = get(subo,'xtick'); yticks = get(subo,'ytick');
+        set(subo,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',12);
+        xlabel(subo,'Easting (km)','fontsize',12); ylabel(subo,'Northing (km)','fontsize',12);
+        if range(xlims) > 1.05*range(ylims) %short and fat map so plot the legend below
+            cbar.Location = "northoutside"; cbar.Orientation = 'horizontal';
+            set(subo,'position',[subo_pos(1)+x_shift subo_pos(2) 0.9*subo_pos(3) 0.9*subo_pos(4)]); drawnow;
+            set(ax2,'position',[subo_pos(1)+x_shift subo_pos(2) 0.9*subo_pos(3) 0.9*subo_pos(4)]); drawnow;
+        else %tall and thin map so plot the legend on the side
+            set(subo,'position',[subo_pos(1) subo_pos(2) subo_pos(3) subo_pos(4)]); drawnow;
+            set(ax2,'position',[subo_pos(1) subo_pos(2) subo_pos(3) subo_pos(4)]); drawnow;
+        end
+        subo_pos = get(subo,'position');
+
+        %load the DEM of interest for the example map
         melange_mats = dir([root_dir,site_abbrev,'/DEMs/*DEMfilled.mat']);
         for p = 1:length(melange_mats)
             DEM_name = melange_mats(p).name;
             if contains(DEM_name,'20110610')
                 load([root_dir,site_abbrev,'/DEMs/',DEM_name]);
                 [ZXgrid,ZYgrid] = meshgrid(M.DEM.x,M.DEM.y);
-                
-                %create the packing density mask 
+
+                %create the packing density mask
                 packmask = zeros(size(ZXgrid));
                 maskedz = M.DEM.z_filled.*M.mask.DEM;
                 packmask(maskedz <= zthresh) = 1;
@@ -1695,18 +1772,25 @@ for j = 1:length(MP)
         end
 
         %plot the map
+        subm = subplot(3,1,2);
         maskedz(isnan(maskedz)) = -0.1; axa = gca;
-        imagesc(subm,M.DEM.x,M.DEM.y,maskedz); axis xy equal; 
-        berg_cmap = colormap(gray(501)); berg_cmap(1,:) = [1 1 1];
-        colormap(subm,berg_cmap); drawnow; hold on;
-        % set(subm,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
-        set(subm,'xlim',[-332500 -320500],'ylim',[-1646500 -1638500]);
-        set(subm,'clim',[0 50]); berg_cbar = colorbar; berg_cbar.Ticks = [0:10:50]; berg_cbar.Label.String = 'elevation (m a.s.l.)';
+        imagesc(subm,M.DEM.x,M.DEM.y,(1026/(1026-917))*maskedz); axis xy equal;
+        % berg_cmap = colormap(gray(501)); berg_cmap(1,:) = [1 1 1];
+        % colormap(subm,berg_cmap); drawnow; hold on;
+        colormap(subm,z_cmap); set(subm,'clim',[0 200]); drawnow; hold on;
+        % set(subm,'xlim',[-332500 -320500],'ylim',[-1646500 -1638500]);
+        berg_cbar = colorbar; %berg_cbar.Ticks = [0:50:200]; 
+        berg_cbar.Label.String = 'Thickness (m)';
+        berg_cbar.FontSize = 12; berg_cbar.Location = 'northoutside';
         %format the map
+        % xticks = get(subm,'xtick'); yticks = get(subm,'ytick');
+        % set(subm,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',12);
+        % xlabel(subm,'Easting (km)','fontsize',12); ylabel(subm,'Northing (km)','fontsize',12);
+        set(subm,'xlim',xlims,'ylim',ylims);
         xticks = get(subm,'xtick'); yticks = get(subm,'ytick');
         set(subm,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',12);
         xlabel(subm,'Easting (km)','fontsize',12); ylabel(subm,'Northing (km)','fontsize',12);
-        
+
 
         %load the size distribution for near the terminus for the date
         D = readtable([root_dir,MP(j).name,'/',MP(j).name,'-20110610-iceberg-distribution-subsets.csv'],"VariableNamingRule","preserve");
@@ -1729,14 +1813,17 @@ for j = 1:length(MP)
 
         %add the mask for bergy bits
         packmask(maskedz==-0.1) = -1; packmask(maskedz==0) = -1;
-        packalpha = 0.75*packmask;
+        packalpha = 0.8*packmask;
         figure(ex_fig); subplot(subm);
-        axb = axes; mask_cmap = [1,1,1; 0,0,0; 251/255,180/255,185/255];
+        axb = axes; %mask_cmap = [1,1,1; 0,0,0; 251/255,180/255,185/255];
+        mask_cmap = [1,1,1; 0,0,0; 0.85 0.85 0.85];
         implot = imagesc(axb,M.DEM.x,M.DEM.y,packmask,'AlphaData', packalpha); axis xy equal; hold on;
         colormap(axb,mask_cmap); set(axb,'color','none','visible','off');
-        % set(axb,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
-        set(axb,'xlim',[-332500 -320500],'ylim',[-1646500 -1638500]);
-        colormap(subm,berg_cmap);
+        % set(axb,'xlim',[-332500 -320500],'ylim',[-1646500 -1638500]);
+        set(axb,'xlim',xlims,'ylim',ylims);
+        % colormap(subm,berg_cmap);
+        colormap(subm,z_cmap);
+        map_pos = get(subm,'position'); set(subm,'position',[subo_pos(1) map_pos(2) subo_pos(3) subo_pos(4)]);
         map_pos = get(subm,'position'); set(axb,'position',map_pos);
         clear packmask maskedz M;
         % %add the centerline
@@ -1759,11 +1846,12 @@ for j = 1:length(MP)
         plot([S(inland_idx).X(1:end-1),melmask.uncropped.x(end_idx(2)+1:1:start_idx(2))',S(inland_idx+1).X(end-1:-1:1),melmask.uncropped.x(start_idx(1)+1:1:end_idx(1)-1)',S(inland_idx).X(1)],...
             [S(inland_idx).Y(1:end-1),melmask.uncropped.y(end_idx(2)+1:1:start_idx(2))',S(inland_idx+1).Y(end-1:-1:1),melmask.uncropped.y(start_idx(1)+1:1:end_idx(1)-1)',S(inland_idx).Y(1)],'-','linewidth',2,...
             'color',seas_cmap(2,:)); hold on;
+        plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
         clear S *_idx;
 
         %plot the data
         figure(ex_fig);
-        subp = subplot(2,1,2);
+        subp = subplot(3,1,3);
         plot(subp,log10([v1(zthresh+1),v1(zthresh+1)]),log10([10^-12 10^3]),'-.','LineWidth',1,'Color',[0.5 0.5 0.5]); hold on;
         plot(subp,log10(v1),log10(n1),'-','LineWidth',2,'Color',seas_cmap(2,:)); hold on;
         plot(subp,log10(v1),log10(n1),'s','LineWidth',1,'Color',seas_cmap(2,:),'markersize',5,'markerfacecolor',seas_cmap(2,:)); hold on;
@@ -1777,8 +1865,7 @@ for j = 1:length(MP)
         xlabel('Surface area (m^2)','fontsize',12);
         ylabel('Normalized iceberg count','fontsize',12);
         plot_pos = get(gca,'position');
-        % set(subp,'position',[map_pos(1) plot_pos(2) map_pos(3) map_pos(4)]);
-        set(subp,'position',[0.185 0.11 0.7 0.34]);
+        set(subp,'position',[subo_pos(1) 0.11 subo_pos(3) subo_pos(4)]);
 
         %save the figure
         saveas(ex_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-bergy-bit_example-subplots.png'],'png'); %save the image
@@ -1787,7 +1874,8 @@ for j = 1:length(MP)
         clear inland_idx v n dv n1 v1 dv1;
     end
 
-    clear xlims ylims pt elev_cmap maskedz meltrans mel_data termdists maxind minind mask_*range;
+    clear imx imy Xgrid Ygrid DEMmask;
+    clear xlims ylims pt elev_cmap maskedz meltrans mel_data mel_z melange_* termdists maxind minind mask_*range;
     clear berg_* im* LCdir *_ext leg* map_fig map_leg melmask zmos on pos ref* seaward_ext size_classes sort_ind T T_inds term_* Tyrs Tmos *lims zyrs zdate zseas Tseas tran_cmap colorgrad term;
 end
 close all;

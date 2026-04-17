@@ -6,11 +6,11 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/');
 %site-specific parameters below before each rerun)
 
 %site-specific info
-% root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
-root_dir = '/Users/ellynenderlin/Research/NASA_CryoIdaho/glaciers/';
-site_abbrev = 'Gulkana'; site_name = 'Gulkana';
-% im_dir = [root_dir,site_abbrev,'/images/S2/'];
-im_dir = [root_dir,site_abbrev,'/imagery/S2/'];
+root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
+% root_dir = '/Users/ellynenderlin/Research/NASA_CryoIdaho/glaciers/';
+site_abbrev = 'ASG'; site_name = 'Nunatakassap';
+im_dir = [root_dir,site_abbrev,'/images/S2/'];
+% im_dir = [root_dir,site_abbrev,'/imagery/S2/'];
 disp(['Creating S2 image gif for ',site_abbrev]);
 
 %adjust the time separation between images as needed (will crash if memory is exceeded!)
