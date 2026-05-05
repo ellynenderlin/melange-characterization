@@ -8,7 +8,7 @@ addpath('/Users/ellynenderlin/Research/miscellaneous/general-code/');
 %site-specific info
 root_dir = '/Users/ellynenderlin/Research/NSF_GrIS-Freshwater/melange/';
 % root_dir = '/Users/ellynenderlin/Research/NASA_CryoIdaho/glaciers/';
-site_abbrev = 'ASG'; site_name = 'Nunatakassap';
+site_abbrev = 'ULS'; site_name = 'Ullip';
 im_dir = [root_dir,site_abbrev,'/images/S2/'];
 % im_dir = [root_dir,site_abbrev,'/imagery/S2/'];
 disp(['Creating S2 image gif for ',site_abbrev]);

@@ -840,13 +840,22 @@ end
 
 %create a figure showing near-terminus thickness vs terminus change rate &
 %thickness vs buttressing
-termfig = figure; set(termfig,'position',[50 50 1200 600]);
-sub1 = subplot(1,2,1); sub2 = subplot(1,2,2); 
+termfig = figure; set(termfig,'position',[50 50 1800 600]);
+sub1 = subplot(1,2,1); sub2 = subplot(1,2,2);
 
 %iterate, adding subplots to the composite & making individual site plots
+jams_sr = 0; jams_b = 0; %record the number of jamming events based on compressional strain rates & huge buttressing estimates
+dTdt_pre = []; dTdt_post = []; HT = []; BT = []; %dummy matrices for terminus change rates before & after thickness observations and the corresponding thickness & buttressing estimates
+Bseas_med = []; Bseas_mad = []; Hseas_med = []; Hseas_mad = []; Tseas_med = []; Tseas_mad = []; %dummy matrices for buttressing, thickness, and terminus position
+Iseas = []; Sseas = []; dTw = []; dTs = []; Bsp = []; %dummy matrices for the site index (I), season (S), & fall to spring terminus change (dTw) and spring to fall terminus change (dTs)
 for j = 1:length(MP)
     if ~contains(MP(j).name,'KBG')
     site_abbrev = MP(j).name; disp(site_abbrev);
+    if ismember(MP(j).name,big3)
+        symbol_shape = 'd';
+    else
+        symbol_shape = 's';
+    end
 
     %DEM data
     for p = 1:length(MP(j).Z.date)
@@ -885,8 +894,13 @@ for j = 1:length(MP)
     %compile the data for identifying terminus gaps
     term_decidates = [Tdate, zdate(term_trace == 1)]; term_dates = [Tdatetime, zdatetime(term_trace ==1)]; 
     term_dists = [MP(j).T.termdist, MP(j).Z.termdist(term_trace ==1)];
+    term_seas = [Tseas, zseas(term_trace ==1)];
+    %sort terminus position observations by date
+    [term_decidates_sorted, ic] = sort(term_decidates);
+    term_dists_sorted = term_dists(ic); term_seas_sorted = term_seas(ic);
+    term_pos_sorted = max(term_dists(term_decidates>min(years)))-term_dists_sorted;
 
-    %estimate buttressing for each date
+    %compile dated thickness and packing density profiles
     D_dir = [root_dir,MP(j).name,'/'];
     for p = 1:length(MP(j).Z.date)
         term_trace(p) = MP(j).Z.termflag(p);
@@ -902,6 +916,8 @@ for j = 1:length(MP)
             pack_profs(p,1:inland_idx(p)-1) = fliplr(packing(p,1:inland_idx(p)-1));
         end
     end
+
+    %compile velocity profiles corresponding to the thickness profiles
     vel_dir = [root_dir,sitenames(j,:),'/velocities/'];
     if contains(dvterm,'y')
         inland_vel = max(inland_idx); %grab data from the terminus
@@ -914,35 +930,144 @@ for j = 1:length(MP)
     vdist = MP(j).V.dist; if length(vdist) > size(vel_profs,2); vdist = vdist(1:end-1); end
     dvdist_temp = diff(vdist);
     dVdx = ((diff(vel_profs')'./dvdist_temp)/365);
+    %add up apparent jamming events based on compressional strainrates
+    if ~isempty(find(dVdx(:,1)<0)); jams_sr = jams_sr + numel(find(dVdx(:,1)<0)); end
 
-    %calculate buttressing for each year
+    %filter crazy terminus delineations
+    dTdt = diff(term_pos_sorted)./diff(term_decidates_sorted);
+    %remove duplicates for a given date
+    for k = 1:length(dTdt)
+        if isinf(dTdt(k))
+            term_decidates_sorted(k) = NaN; term_seas_sorted(k) = NaN;
+            term_dists_sorted(k+1) = mean(term_dists_sorted(k:k+1)); term_dists_sorted(k) = NaN;
+            term_pos_sorted(k+1) = mean(term_pos_sorted(k:k+1)); term_pos_sorted(k) = NaN;
+        end
+    end
+    term_decidates_sorted(isnan(term_pos_sorted)) = []; term_seas_sorted(isnan(term_pos_sorted)) = [];
+    term_dists_sorted(isnan(term_pos_sorted)) = []; term_pos_sorted(isnan(term_pos_sorted)) = [];
+    clear dTdt;
+    dTdt = diff(term_pos_sorted)./diff(term_decidates_sorted);
+    term_anoms = find(dTdt > 5*nanmedian(vel_profs(:,1))); %find terminus dates where the next position is way advanced
+    bad_flag = []; 
+    for k = 1:length(term_anoms)
+        if dTdt(term_anoms(k)-1) < -5*nanmedian(vel_profs(:,1)) %if the previous change was also a big retreat, its a dip to remove
+            bad_flag = [bad_flag; term_anoms(k)];
+        elseif dTdt(term_anoms(k)+1) < -5*nanmedian(vel_profs(:,1)) %if the next change was also a big retreat, its a jump to remove
+            bad_flag = [bad_flag; term_anoms(k)+1];
+        end
+    end
+    term_decidates_sorted(bad_flag) = []; term_seas_sorted(bad_flag) = [];
+    term_dists_sorted(bad_flag) = []; term_pos_sorted(bad_flag) = []; clear term_anoms bad_flag dTdt;
+
+    %calculate buttressing for each observation
     for p = 1:size(Havg,1)
+        HT = [HT; H_profs(p,1)]; 
         press = 0.5*rho_i*(1-(rho_i/rho_sw))*9.81*H_profs(p,1);
-        butt_Meng(p) = press*pack_profs(p,1)*H_profs(p,1);
+        butt_Meng(p) = press*pack_profs(p,1)*H_profs(p,1); BT = [BT; butt_Meng(p)];
         butt_Amundson(p) = (-2*(H_profs(p,1)*press*dVdx(p,1))/((dVdx(p,1)/0.3)+dVdx(p,1)))+press*H_profs(p,1);
         clear press dvdist_temp;
+
+        %terminus change rates before & after buttressing estimate
+        if term_trace(p) == 1
+            before_idx = find(term_decidates_sorted<zdate(p),1,'last');
+            after_idx = find(term_decidates_sorted>zdate(p),1,'first');
+            dTdt_pre = [dTdt_pre; (-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx))/abs(zdate(p)-term_decidates_sorted(before_idx)))/365];
+            dTdt_post = [dTdt_post; ((MP(j).Z.termdist(p)-term_dists_sorted(after_idx))/abs(zdate(p)-term_decidates_sorted(after_idx)))/365];
+            clear *_idx;
+        else
+            dTdt_pre = [dTdt_pre; NaN];
+            dTdt_post = [dTdt_post; NaN];
+        end
+
     end
+    %add up apparent jamming events based on buttressing
+    if ~isempty(find(butt_Meng>1e7)); jams_b = jams_b + numel(find(butt_Meng>1e7)); end
+
+    %compile thickness and buttressing data for each year
+    for p = 1:length(years)
+        Iseas = [Iseas; repmat(j,4,1)]; Sseas = [Sseas; 1; 2; 3; 4]; 
+
+        %compile buttressing and associated terminus position and thickness data
+        yr_idx = find(zyrs == years(p));
+        if ~isempty(yr_idx)
+            mos_yr = zmos(yr_idx);
+            for k = 1:4
+                %data for each season (if it exists, NaN if not)
+                if sum(ismember(mos_yr,seasons(k,:))) > 0
+                    Bseas_med = [Bseas_med; median(butt_Meng(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing")];
+                    Bseas_mad = [Bseas_mad; mad(butt_Meng(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all")];
+                    Hseas_med = [Hseas_med; median(HT(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing")];
+                    Hseas_mad = [Hseas_mad; mad(HT(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all")];
+                    Tseas_med = [Tseas_med; median(MP(j).Z.termdist(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing")];
+                    Tseas_mad = [Tseas_mad; mad(MP(j).Z.termdist(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all")];
+                else
+                    Bseas_med = [Bseas_med; NaN];
+                    Bseas_mad = [Bseas_mad; NaN];
+                    Hseas_med = [Hseas_med; NaN];
+                    Hseas_mad = [Hseas_mad; NaN];
+                    Tseas_med = [Tseas_med; NaN];
+                    Tseas_mad = [Tseas_mad; NaN];
+                end
+                %isolate spring data for ease
+                if k == 2; Bsp = [Bsp; Bseas_med(end)]; end 
+            end
+        else
+            Bseas_med = [Bseas_med; NaN([4,1])];
+            Bseas_mad = [Bseas_mad; NaN([4,1])];
+            Hseas_med = [Hseas_med; NaN([4,1])];
+            Hseas_mad = [Hseas_mad; NaN([4,1])];
+            Tseas_med = [Tseas_med; NaN([4,1])];
+            Tseas_mad = [Tseas_mad; NaN([4,1])];
+            Bsp = [Bsp; NaN];
+        end
+        clear yr_idx mos_yr;
+
+        %compile terminus position change for the preceding winter and
+        %subsequent summer
+        prevyr_idx = find(floor(term_decidates_sorted) == years(p)-1);
+        curryr_idx = find(floor(term_decidates_sorted) == years(p)); currsp_idx = find(term_seas_sorted(curryr_idx)==2);
+        [prevT_min,prevT_min_idx] = min(term_pos_sorted(prevyr_idx));
+        % currT_max = median(term_pos_sorted(curryr_idx(currsp_idx)),"all","omitmissing");
+        [currT_max,currT_max_idx] = max(term_pos_sorted(curryr_idx(currsp_idx)));
+        currT_min = min(term_pos_sorted(curryr_idx));
+        dTw_temp = currT_max-prevT_min; if isempty(dTw_temp); dTw_temp = NaN; end
+        dTs_temp = currT_min - currT_max; if isempty(dTs_temp); dTs_temp = NaN; end
+        dTw = [dTw; dTw_temp]; dTs = [dTs; dTs_temp]; %advance > 0, retreat < 0
+        clear *_idx *_min *_max dT*_temp;
+    end
+    % if j == 15
+    %     disp(['Winter terminus change = ',num2str(dTw(end-length(years)+1:end)')]);
+    %     disp(['Summer terminus change = ',num2str(dTs(end-length(years)+1:end)')]);
+    % end
 
     %plot the thickness vs terminus change & buttressing
     figure(termfig);
     subplot(sub1); semilogy(H_profs(:,1),butt_Meng,'sk'); hold on;
-    [term_decidates_sorted, ic] = sort(term_decidates);
-    term_dists_sorted = term_dists(ic);
     for p = 1:size(Havg,1)
         if term_trace(p) == 1
             before_idx = find(term_decidates_sorted<zdate(p),1,'last');
             after_idx = find(term_decidates_sorted>zdate(p),1,'first');
-            subplot(sub2); 
-            pb(1) = semilogx(butt_Meng(p),(-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx))/abs(zdate(p)-term_decidates_sorted(before_idx)))/365,...
-                'sk','markerfacecolor',seas_cmap(zseas(p),:)); hold on; %minus sign to make retreat negative
-            pb(2) = semilogx(butt_Meng(p),((MP(j).Z.termdist(p)-term_dists_sorted(after_idx))/abs(zdate(p)-term_decidates_sorted(after_idx)))/365,...
-                'dk','markerfacecolor',seas_cmap(zseas(p),:)); hold on; %later date minus earlier date so no negative needed
+
+            %dummy plot for legend
+            subplot(sub2);
+            if j == 1 && p == 1
+                pb(1) = semilogx(butt_Meng(p),(-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx))/abs(zdate(p)-term_decidates_sorted(before_idx)))/365,...
+                    '^k','markerfacecolor','w'); hold on; %minus sign to make retreat negative
+                pb(2) = semilogx(butt_Meng(p),((MP(j).Z.termdist(p)-term_dists_sorted(after_idx))/abs(zdate(p)-term_decidates_sorted(after_idx)))/365,...
+                    'vk','markerfacecolor','w'); hold on; %later date minus earlier date so no negative needed
+            end
+
+            %plot real data
+            subplot(sub2);
+            semilogx(butt_Meng(p),(-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx))/abs(zdate(p)-term_decidates_sorted(before_idx)))/365,...
+                '^k','markerfacecolor',seas_cmap(zseas(p),:)); hold on; %minus sign to make retreat negative
+            semilogx(butt_Meng(p),((MP(j).Z.termdist(p)-term_dists_sorted(after_idx))/abs(zdate(p)-term_decidates_sorted(after_idx)))/365,...
+                'vk','markerfacecolor',seas_cmap(zseas(p),:)); hold on; %later date minus earlier date so no negative needed
             clear before_idx after_idx;
         end
     end
-    pb_leg = legend(pb,'before','after')
+    pb_leg = legend(pb,'before','after');
     drawnow;
-    clear term*sorted ic;
 
     %plot the terminus & buttressing timeseries as a standalone site figure
     ts_fig = figure; set(ts_fig,'position',[50 50 1200 600]);
@@ -962,29 +1087,30 @@ for j = 1:length(MP)
                 'edgecolor','k','facealpha',0.5,'linewidth',0.5); hold on;
         end
     end
-    set(gca,'xlim',[min(years) max(years)],'fontsize',16); grid on;
+    set(gca,'xlim',[min(years)-1 max(years)],'fontsize',16); grid on;
     xlabel('Year','fontsize',16); ylabel('Buttressing (10^6 N/m)','fontsize',16); 
 
     %overlay the terminus position timeseries
     yyaxis right; axr = gca;
-    for p = 1:length(MP(j).T.date)
+    plot(term_decidates_sorted,term_pos_sorted,'-k','linewidth',1,'markersize',10); hold on;
+    for p = 1:length(term_pos_sorted)
         %add dummy plot for the legend
         if p ==1
             for k = 1:4
-            pterm(k) = plot(Tdate(p),max(term_dists(term_decidates>min(years)))-MP(j).T.termdist(p),'s',...
+            pterm(k) = plot(term_decidates_sorted(p),term_pos_sorted(p),symbol_shape,...
             'markeredgecolor',seas_cmap(k,:),'markerfacecolor',seas_cmap(k,:),'linewidth',1,'markersize',10); hold on;
             end
         end
 
         %plot the data
-        plot(Tdate(p),max(term_dists(term_decidates>min(years)))-MP(j).T.termdist(p),'s',...
-            'color',seas_cmap(Tseas(p),:),'markerfacecolor',seas_cmap(Tseas(p),:),'linewidth',1,'markersize',10); hold on;
+        plot(term_decidates_sorted(p),term_pos_sorted(p),symbol_shape,...
+            'color',seas_cmap(term_seas_sorted(p),:),'markerfacecolor',seas_cmap(term_seas_sorted(p),:),'linewidth',1,'markersize',10); hold on;
     end
-    for p = 1:length(MP(j).Z.date)
-        plot(zdate(p),max(term_dists(term_decidates>min(years)))-MP(j).Z.termdist(p),'s',...
-            'color',seas_cmap(zseas(p),:),'markerfacecolor',seas_cmap(zseas(p),:),'linewidth',1,'markersize',10); hold on;
-    end
-    set(gca,'xlim',[min(years) max(years)],'ylim',[0,max(term_dists(term_decidates>min(years)))-min(term_dists(term_decidates>min(years)))]);
+    % for p = 1:length(MP(j).Z.date)
+    %     plot(zdate(p),max(term_dists(term_decidates>min(years)))-MP(j).Z.termdist(p),'.',...
+    %         'color',seas_cmap(zseas(p),:),'markerfacecolor',seas_cmap(zseas(p),:),'linewidth',1,'markersize',10); hold on;
+    % end
+    set(gca,'xlim',[min(years)-1 max(years)],'ylim',[0,max(term_dists(term_decidates>(min(years)-1)))-min(term_dists(term_decidates>(min(years)-1)))]);
     ylims = get(gca,'ylim'); yticks = get(gca,'ytick');
     set(gca,'ytick',yticks,'yticklabels',yticks/1000,'fontsize',16);
     grid on; drawnow;
@@ -1011,7 +1137,7 @@ for j = 1:length(MP)
         for k = 1:4
             seas_idx = find(zseas==k);
             for p = 1:length(seas_idx)
-                bpM = fill([zdate(seas_idx(p))-0.05,zdate(seas_idx(p))+0.05,zdate(seas_idx(p))+0.05,zdate(seas_idx(p))-0.05,zdate(seas_idx(p))-0.05],...
+                bpM = fill([zdate(seas_idx(p))-0.075,zdate(seas_idx(p))+0.075,zdate(seas_idx(p))+0.075,zdate(seas_idx(p))-0.075,zdate(seas_idx(p))-0.075],...
                     [0,0,butt_Meng(seas_idx(p)),butt_Meng(seas_idx(p)),0]./10^6,seas_cmap(k,:),...
                     'edgecolor','none','facealpha',0.5,'linewidth',1.5); hold on;
             end
@@ -1019,19 +1145,19 @@ for j = 1:length(MP)
         for k = 1:4
             seas_idx = find(zseas==k);
             for p = 1:length(seas_idx)
-                bpA = fill([zdate(seas_idx(p))-0.05,zdate(seas_idx(p))+0.05,zdate(seas_idx(p))+0.05,zdate(seas_idx(p))-0.05,zdate(seas_idx(p))-0.05],...
+                bpA = fill([zdate(seas_idx(p))-0.075,zdate(seas_idx(p))+0.075,zdate(seas_idx(p))+0.075,zdate(seas_idx(p))-0.075,zdate(seas_idx(p))-0.075],...
                     [0,0,butt_Amundson(seas_idx(p)),butt_Amundson(seas_idx(p)),0]./10^6,'k',...
                     'edgecolor','none','facealpha',0.5,'linewidth',0.5); hold on;
             end
         end
-        set(ax1,'xlim',[min(years) max(years)],'xticklabel',[],'fontsize',12); grid on;
+        set(ax1,'xlim',[min(years)-1 max(years)],'xticklabel',[],'fontsize',12); grid on;
         ax1.YAxis(1).Color = 'k'; set(ax1,'box','on'); ax1.LineWidth = 1.5;
         %add labels
         if plot_locs(plot_ind) >= rows*cols - (cols-1) || (plot_locs(plot_ind) >= 2 && plot_locs(plot_ind) <= 3)
             % xticks = get(gca,'xtick'); set(gca,'xticklabel',xticks); clear xticks;
             if plot_locs(plot_ind) == rows*cols - (cols-1)
                 ax1.YAxis(1).Label.String = 'Buttressing (10^6 N/m)';
-                ax1.YAxis(1).Label.Position = [2009.4 3.5 -1];
+                ax1.YAxis(1).Label.Position = [2008.4 3.5 -1];
             end
         end
         %crop the y-axis as needed & label bars that extend off the limit
@@ -1051,25 +1177,26 @@ for j = 1:length(MP)
 
         %plot the terminus timeseries
         yyaxis right; axr = gca;
-        for p = 1:length(MP(j).T.date)
+        plot(term_decidates_sorted,term_pos_sorted,'-k','linewidth',1,'markersize',10); hold on;
+        for p = 1:length(term_pos_sorted)
             %add dummy plot for the legend
             if p ==1
                 for k = 1:4
-                    pterm(k) = plot(Tdate(p),max(term_dists(term_decidates>min(years)))-MP(j).T.termdist(p),'s',...
+                    pterm(k) = plot(term_decidates_sorted(p),NaN,symbol_shape,...
                         'markeredgecolor',seas_cmap(k,:),'markerfacecolor',seas_cmap(k,:),'linewidth',1,'markersize',3); hold on;
                 end
             end
 
             %plot the data
-            plot(Tdate(p),max(term_dists(term_decidates>min(years)))-MP(j).T.termdist(p),'s',...
-                'color',seas_cmap(Tseas(p),:),'markerfacecolor',seas_cmap(Tseas(p),:),'linewidth',1,'markersize',3); hold on;
+            plot(term_decidates_sorted(p),term_pos_sorted(p),symbol_shape,...
+                'color',seas_cmap(term_seas_sorted(p),:),'markerfacecolor',seas_cmap(term_seas_sorted(p),:),'linewidth',1,'markersize',2); hold on;
         end
-        for p = 1:length(MP(j).Z.date)
-            plot(zdate(p),max(term_dists(term_decidates>min(years)))-MP(j).Z.termdist(p),'s',...
-                'color',seas_cmap(zseas(p),:),'markerfacecolor',seas_cmap(zseas(p),:),'linewidth',1,'markersize',3); hold on;
-        end
-        set(axr,'xlim',[min(years) max(years)],'xticklabel',[],...
-            'ylim',[0,max(term_dists(term_decidates>min(years)))-min(term_dists(term_decidates>min(years)))]);
+        % for p = 1:length(MP(j).Z.date)
+        %     plot(zdate(p),max(term_dists(term_decidates>min(years)))-MP(j).Z.termdist(p),'.',...
+        %         'color',seas_cmap(zseas(p),:),'markerfacecolor',seas_cmap(zseas(p),:),'linewidth',1,'markersize',3); hold on;
+        % end
+        set(axr,'xlim',[min(years)-1 max(years)],'xticklabel',[],...
+            'ylim',[0,max(term_dists(term_decidates>(min(years)-1)))-min(term_dists(term_decidates>(min(years)-1)))]);
         ylims = get(gca,'ylim'); yticks = get(gca,'ytick');
         set(gca,'ytick',yticks,'yticklabels',yticks/1000,'fontsize',12);
         grid on; drawnow;
@@ -1091,9 +1218,9 @@ for j = 1:length(MP)
         end
         %shift plot locations
         if mod(plot_locs(plot_ind),3) == 0
-            set(gca,'position',[pos(1)-0.02 pos(2) 0.24 1.1*pos(4)]);
+            set(gca,'position',[pos(1) pos(2) 0.24 1.1*pos(4)]);
         elseif mod(plot_locs(plot_ind),3) == 2
-            set(gca,'position',[pos(1)-0.04 pos(2) 0.24 1.1*pos(4)]);
+            set(gca,'position',[pos(1)-0.02 pos(2) 0.24 1.1*pos(4)]);
         else
             set(gca,'position',[pos(1)-0.06 pos(2) 0.24 1.1*pos(4)]);
         end
@@ -1101,11 +1228,74 @@ for j = 1:length(MP)
     end
     drawnow;
 
+    %create plots of terminus position change relative to buttressing
+    figure(summaryfig); subdT = subplot(rows,cols,[8,11,14]);
+    plot(Bsp(end-length(years)+1:end),dTw(end-length(years)+1:end),symbol_shape,...
+        'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(1,:)); hold on;
+    plot(Bsp(end-length(years)+1:end),dTs(end-length(years)+1:end),symbol_shape,...
+        'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(3,:)); hold on;
+
+    clear term*sorted ic;
     clear dts inland_* seaward_idx mean_prof Tdate* term_* Tmos vdist Tyrs zdate* zmos zyrs;
     clear Tdist* zseas Tseas butt_* bp* Havg packing *_profs dVdx dvdist_temp;
     end
 end
 
+%label the center plot
+figure(summaryfig); subplot(subdT);
+set(subdT,'fontsize',12); grid on; box on;
+xticks = get(gca,'xtick'); yticks = get(gca,'ytick');
+set(gca,'xlim',[0 2.5e6],'xticklabel',xticks/10^6,'yticklabel',yticks/10^3);
+xlabel('Buttressing (10^6 N/m)','fontsize',12); ylabel('Terminus change (km)','fontsize',12); 
+% fit excluding ZIM
+Bsp_alt = Bsp(1:end-length(years)+1); dTw_alt = dTw(1:end-length(years)+1); dTs_alt = dTs(1:end-length(years)+1);
+[fw_alt,gofw_alt] = fit(Bsp_alt(~isnan(Bsp_alt) & ~isnan(dTw_alt)),dTw_alt(~isnan(Bsp_alt) & ~isnan(dTw_alt)),'poly1'); 
+[fs_alt,gofs_alt] = fit(Bsp_alt(~isnan(Bsp_alt) & ~isnan(dTs_alt)),dTs_alt(~isnan(Bsp_alt) & ~isnan(dTs_alt)),'poly1'); 
+plot(Bsp(end-length(years)+1:end),dTw(end-length(years)+1:end),'xw','markersize',3,'linewidth',1); hold on;
+plot(Bsp(end-length(years)+1:end),dTs(end-length(years)+1:end),'xw','markersize',3,'linewidth',1); hold on;
+% fit all
+[fw,gofw] = fit(Bsp(~isnan(Bsp) & ~isnan(dTw)),dTw(~isnan(Bsp) & ~isnan(dTw)),'poly1'); 
+[fs,gofs] = fit(Bsp(~isnan(Bsp) & ~isnan(dTs)),dTs(~isnan(Bsp) & ~isnan(dTs)),'poly1'); 
+% plot the fits
+Bx = linspace(min(Bsp),max(Bsp),10);
+plot(Bx,fw(Bx),'-','color',seas_cmap(1,:),'linewidth',2); plot(Bx,fs(Bx),'-','color',seas_cmap(3,:),'linewidth',2); hold on;
+plot(Bx,fw_alt(Bx),'--','color',seas_cmap(1,:),'linewidth',2); plot(Bx,fs_alt(Bx),'--','color',seas_cmap(3,:),'linewidth',2); hold on;
+set(gca,'ytick',[-8*10^3:2*10^3:8*10^3],'yticklabel',[-8:2:8]);
+ylims = get(gca,'ylim'); xlims = get(gca,'xlim');
+% add legend for colors
+rectangle('position',[min(xlims)+0.675*range(xlims), min(ylims)+0.9*range(ylims),0.3*range(xlims),0.075*range(ylims)],'facecolor', ...
+    'w','edgecolor','k','linewidth',1.5);
+plot(min(xlims)+0.725*range(xlims), min(ylims)+0.955*range(ylims),...
+    symbol_shape,'markeredgecolor','k','markerfacecolor',seas_cmap(1,:),'linewidth',1);
+plot(min(xlims)+0.725*range(xlims), min(ylims)+0.925*range(ylims),...
+    symbol_shape,'markeredgecolor','k','markerfacecolor',seas_cmap(3,:),'linewidth',1);
+text(min(xlims)+0.775*range(xlims),min(ylims)+0.955*range(ylims),['winter']);
+text(min(xlims)+0.775*range(xlims),min(ylims)+0.925*range(ylims),['summer']);
+% add legend for fits
+rectangle('position',[min(xlims)+0.25*range(xlims), min(ylims)+0.025*range(ylims),0.725*range(xlims),0.13*range(ylims)],'facecolor', ...
+    'w','edgecolor','k','linewidth',1.5);
+%all data
+plot([min(xlims)+0.25*range(xlims),min(xlims)+0.325*range(xlims)], [min(ylims)+0.12*range(ylims),min(ylims)+0.12*range(ylims)],...
+    '-','color',seas_cmap(1,:),'linewidth',2);
+plot([min(xlims)+0.25*range(xlims),min(xlims)+0.325*range(xlims)], [min(ylims)+0.055*range(ylims),min(ylims)+0.055*range(ylims)],...
+    '-','color',seas_cmap(3,:),'linewidth',2);
+text(min(xlims)+0.35*range(xlims),min(ylims)+0.12*range(ylims),['R^2_{all}=',num2str(round(gofw.rsquare,2))]);
+text(min(xlims)+0.35*range(xlims),min(ylims)+0.055*range(ylims),['R^2_{all}=',num2str(round(gofs.rsquare,2))]);
+%without ZIM
+plot([min(xlims)+0.575*range(xlims),min(xlims)+0.675*range(xlims)], [min(ylims)+0.12*range(ylims),min(ylims)+0.12*range(ylims)],...
+    '--','color',seas_cmap(1,:),'linewidth',2);
+plot([min(xlims)+0.575*range(xlims),min(xlims)+0.675*range(xlims)], [min(ylims)+0.055*range(ylims),min(ylims)+0.055*range(ylims)],...
+    '--','color',seas_cmap(3,:),'linewidth',2);
+text(min(xlims)+0.70*range(xlims),min(ylims)+0.12*range(ylims),['R^2_{noZIM}=',num2str(round(gofw_alt.rsquare,2))]);
+text(min(xlims)+0.70*range(xlims),min(ylims)+0.055*range(ylims),['R^2_{noZIM}=',num2str(round(gofs_alt.rsquare,2))]);
+disp(['Winter advance = ',num2str(fw.p1*10^6/1000), 'km for each 10^6 N/m increase in buttressing']);
+disp(['Winter fit RMSE = ',num2str(gofw.rmse/1000), ' km and R^2 = ',num2str(gofw.rsquare)]);
+disp(['Summer retreat = ',num2str(fs.p1*10^6/1000), 'km for each 10^6 N/m increase in buttressing']);
+disp(['Summer fit RMSE = ',num2str(gofs.rmse/1000), ' km and R^2 = ',num2str(gofs.rsquare)]);
+%adjust subplot position
+subplot(subB11); pos = get(gca,'position');
+subplot(subdT); subpos = get(gca,'position'); set(gca,'linewidth',1.5);
+set(subdT,'position',[pos(1) subpos(2)-0.06 pos(3) subpos(4)+0.12]);
 
 %save the GrIS-wide timeseries
 saveas(summaryfig,[root_dir,'GrIS-melange_terminus-buttressing_',num2str(zcutoff),'m-zcutoff_timeseries.png'],'png');
@@ -1118,6 +1308,7 @@ xlabel('Thickness (m)','fontsize',16); ylabel('Buttressing (N/m)','fontsize',16)
 subplot(sub2); set(sub2,'fontsize',16);
 xlabel('Buttressing (N/m)','fontsize',16); ylabel('Terminus change rate (m/d)','fontsize',16); 
 
+close all;
 
 %% create terminus position plots
 load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
