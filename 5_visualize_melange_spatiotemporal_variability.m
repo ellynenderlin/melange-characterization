@@ -74,23 +74,34 @@ for j = 1:length(geo_order)
 end
 big3 = [{'SEK'},{'HLG'},{'ZIM'}];
 
+alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m',...
+    'n','o','p','q','r','s','t','u','v','w','x','y','z'];
 
+
+%% load the saved data compiled for all study sites
+load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+for j = 1:length(MP)
+    saved_sites(j,:) = MP(j).name;
+end
 
 %% create overview plots of melange characteristics
 close all; drawnow;
 
-%load the melange characteristic dataset created by compile_melange_characteristics.m
-load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+% %load the melange characteristic dataset created by compile_melange_characteristics.m
+% load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+% for j = 1:length(MP)
+%     saved_sites(j,:) = MP(j).name;
+% end
 
 % create summary figures
 summaryfig = figure; set(summaryfig,'position',[-1650 50 900 1200]);
-for j = 1:length(plot_locs)
+for j = 1:length(geo_ind)
     figure(summaryfig);
     eval(['subH',num2str(geo_ind(j)),'=subplot(',num2str(rows),',',num2str(cols),',',num2str(plot_locs(j)),');']);
     % figure(Vfig);
     % eval(['subV',num2str(geo_ind(j)),'=subplot(',num2str(rows),',',num2str(cols),',',num2str(plot_locs(j)),');']);
 end
-missfig = figure; set(missfig,'position',[1050 50 450 500]); 
+missfig = figure; set(missfig,'position',[1050 50 900 500]); 
 % subm1 = subplot(2,1,1); subm2 = subplot(2,1,2);
 
 % %If adding new dates, profiles need to be removed from the structure
@@ -103,21 +114,24 @@ missfig = figure; set(missfig,'position',[1050 50 450 500]);
 
 %create dummy vectors to hold all buttressing data for histogram plotting
 BM_annual = []; BM_character = []; BA_annual = []; BA_character = [];
-
-
-disp(['Creating profile plots ignoring icebergs thinner than ',num2str(Hcutoff),'m & using ',vfilter,' speeds w/ dt ~',num2str(round([vdtmin,vdtmax])),' days']);
 %iterate
-for j = 1:length(MP)
-    sitenames(j,:) = MP(j).name; seasons = MP(j).D.months;
-    disp(sitenames(j,:)); site_abbrev = MP(j).name;
+disp(['Creating profile plots ignoring icebergs thinner than ',num2str(Hcutoff),'m & using ',vfilter,' speeds w/ dt ~',num2str(round([vdtmin,vdtmax])),' days']);
+for l = 1:length(geo_names)
+    %identify the index in the structure for the specified sitename
+    j = find(strcmp(string(saved_sites),string(geo_order(l))));
+
+    %specify site plotting conventions
+    site_abbrev = MP(j).name; disp(site_abbrev);
+    seasons = MP(j).D.months;
+    disp(site_abbrev);
     transect_inc = round(nanmean(sqrt((diff(MP(j).V.X).^2 + diff(MP(j).V.Y).^2)))/100)*100;
 
     %isolate the dates for data sorting
-    D_dir = [root_dir,MP(j).name,'/'];
+    D_dir = [root_dir,site_abbrev,'/'];
     for p = 1:length(MP(j).Z.date)
         term_trace(p) = MP(j).Z.termflag(p);
     end
-    [berg_dates,Havg,packing,inland_idx,seaward_idx,seaward_ext,H_seas,pack_seas] = extract_seasonal_binned_DEM_profiles(D_dir,MP(j).name,term_trace,MP(j).Z.termX,MP(j).Z.termY,MP(j).V.X,MP(j).V.Y,ARcomp.best.autoALL,zcutoff,sampling,years,seasons);
+    [berg_dates,Havg,packing,inland_idx,seaward_idx,seaward_ext,H_seas,pack_seas] = extract_seasonal_binned_DEM_profiles(D_dir,site_abbrev,term_trace,MP(j).Z.termX,MP(j).Z.termY,MP(j).V.X,MP(j).V.Y,ARcomp.best.autoALL,zcutoff,sampling,years,seasons);
     %create derived variables from elevation-based profile outputs
     seaward_meanidx = round(mean(seaward_ext));
     for p = 1:size(berg_dates,2)
@@ -156,15 +170,15 @@ for j = 1:length(MP)
         inland_vel = max(inland_idx)-1; %only get speeds from the melange
         ref_adjust = 0;
     end
-    vel_dir = [root_dir,sitenames(j,:),'/velocities/'];
+    vel_dir = [root_dir,site_abbrev,'/velocities/'];
     vel_seas = create_seasonal_speed_profiles(vel_dir,inland_idx,inland_vel,ref_adjust,vterm_idx,term_idx,Tyrs,Tmos,vdtmin,vdtmax,vfilter,years,seasons,zyrs,zmos);
     vdist = MP(j).V.dist;
 
     %loop through the subsetted size distributions and compute seasonal
     %averages nearest the terminus & a fixed relative distance down-fjord
-    Dsubs = dir([root_dir,MP(j).name,'/',MP(j).name,'*-iceberg-distribution-subsets.csv']);
+    Dsubs = dir([root_dir,site_abbrev,'/',site_abbrev,'*-iceberg-distribution-subsets.csv']);
     for p = 1:length(Dsubs)
-        D = readtable([root_dir,MP(j).name,'/',Dsubs(p).name],"VariableNamingRule","preserve");
+        D = readtable([root_dir,site_abbrev,'/',Dsubs(p).name],"VariableNamingRule","preserve");
         berg_datestrings(p,:) = Dsubs(p).name(length(site_abbrev)+2:length(site_abbrev)+9);
         byrs(p) = year(berg_dates(p)); bmos(p) = month(berg_dates(p));
         if p == 1 %grab the bin size info from the first file (same in all files)
@@ -241,9 +255,9 @@ for j = 1:length(MP)
     disp('extracted distributions');
 
     %load iceberg distribution profiles
-    D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-slope_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
+    D = readtable([root_dir,site_abbrev,'/models/',site_abbrev,'-powerlaw-slope_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
     size_plslope = table2array(D(:,2:end)); clear D;
-    D = readtable([root_dir,MP(j).name,'/models/',MP(j).name,'-powerlaw-bergybit-mispredict_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
+    D = readtable([root_dir,site_abbrev,'/models/',site_abbrev,'-powerlaw-bergybit-mispredict_',num2str(zcutoff),'m-zcutoff_seasonal-profiles.csv'],"VariableNamingRule","preserve");
     res_A = table2array(D(:,2:end)); clear D;
     %find the last binned seasonal distribution with data
     for k = 1:4
@@ -260,15 +274,15 @@ for j = 1:length(MP)
     subis = subplot(4,2,1); subss = subplot(4,2,2); %inland and seaward size distributions
     subdv = subplot(4,2,[3:4]); subp = subplot(4,2,[5:6]); subm = subplot(4,2,[7:8]); %references for speed & packing density profiles & missfit scatterplot
     max_xlim = max([Hdist(find(sum(sum(~isnan(H_seas),2),3)>0,1,'last'))]);
-    plot_ind = find(geo_ind == j);
+    plot_ind = find(geo_ind == geo_ind(l));
     % disp([MP(j).name,': j = ',num2str(j),', plot_ind = ',num2str(plot_ind)])
 
     %add thickness profiles to figures
     for k = 1:4
         if k <= 2
-            fill_alpha = 0.1;
-        else
             fill_alpha = 0.2;
+        else
+            fill_alpha = 0.4;
         end
 
         %relative to moving terminus
@@ -300,7 +314,7 @@ for j = 1:length(MP)
             figure(summaryfig);
             if ~isempty(plot_ind)
                 %navigate to the subplot
-                eval(['subplot(subH',num2str(j),');']);
+                eval(['subplot(subH',num2str(geo_ind(l)),');']);
                 ax1 = gca;
 
                 %plot the thickness profiles
@@ -342,10 +356,10 @@ for j = 1:length(MP)
     % set(subz,'position',subz_pos); %resize the subplot
     %format the site subplot in the thickness figure
     if ~isempty(plot_ind)
-        figure(summaryfig); eval(['subplot(subH',num2str(j),');']);
+        figure(summaryfig); eval(['subplot(subH',num2str(geo_ind(l)),');']);
         yyaxis left;
         set(gca,'xlim',[0, 25000],'xticklabel',[],...
-            'ylim',[0 ceil(max(H_ylim(:,2))/10)*10],'fontsize',12); drawnow;
+            'ylim',[0 ceil(max(H_ylim(:,2))/10)*10],'fontsize',14); drawnow;
         gca_pos = get(gca,'position'); ylims = get(gca,'ylim'); 
         %slightly adjust ytick plotting depending on zcutoff
         if zcutoff == 3
@@ -379,11 +393,12 @@ for j = 1:length(MP)
         if plot_locs(plot_ind) >= rows*cols - (cols-1) || (plot_locs(plot_ind) >= 2 && plot_locs(plot_ind) <= 3)
             xticks = get(gca,'xtick'); set(gca,'xticklabel',xticks/1000); clear xticks;
             % set(gca,'yticklabel',yticks);
-            xlabel('Distance from terminus (km)','fontsize',12); 
+            xlabel('Distance from terminus (km)','fontsize',14); 
             if plot_locs(plot_ind) == rows*cols - (cols-1)
                 ax1.YAxis(1).Label.String = 'Thickness (m)';
                 ax1.YAxis(1).Label.Position = [-2.7066e3 250 -1];
-                % ylabel('Thickness (m)','fontsize',12);
+                ax1.YAxis(1).Label.FontSize = 14;
+                % ylabel('Thickness (m)','fontsize',14);
             end
         end
         clear ylims yticks;
@@ -393,26 +408,26 @@ for j = 1:length(MP)
             subH_pos = get(gca,'position');
             H_leg.Orientation = 'horizontal'; %move the legend
             H_leg.Position = [0.38 0.24 0.25 0.035]; 
-            set(gca,'position',subH_pos); %resize the subplot
+            set(gca,'position',subH_pos,'fontsize',14); %resize the subplot
             drawnow;
         end
 
         %slightly shift plot locations to fit inset map in middle
         if plot_ind > 1 && plot_ind <= 8
-            set(gca,'position',[gca_pos(1)-0.06 gca_pos(2) gca_pos(3)+0.04 0.07]);
+            set(gca,'position',[gca_pos(1)-0.06 gca_pos(2) gca_pos(3)+0.04 0.068]);
         elseif plot_ind > 9
-            set(gca,'position',[gca_pos(1)+0 gca_pos(2) gca_pos(3)+0.04 0.07]);
+            set(gca,'position',[gca_pos(1)+0 gca_pos(2) gca_pos(3)+0.04 0.068]);
         else
-            set(gca,'position',[gca_pos(1)-0.03 gca_pos(2) gca_pos(3)+0.04 0.07]);
+            set(gca,'position',[gca_pos(1)-0.03 gca_pos(2) gca_pos(3)+0.04 0.068]);
         end
     end
     
     %add speed-based profiles to figures
     for k = 1:4
         if k <= 2
-            fill_alpha = 0.1;
-        else
             fill_alpha = 0.2;
+        else
+            fill_alpha = 0.4;
         end
 
         %relative to moving terminus
@@ -455,13 +470,13 @@ for j = 1:length(MP)
             figure(summaryfig);
             if ~isempty(plot_ind)
                 %navigate to the subplot
-                eval(['subplot(subH',num2str(j),');']);
+                eval(['subplot(subH',num2str(geo_ind(l)),');']);
 
                 %plot the speed profiles
                 yyaxis right;
                 fill([vdist(vmax_idx), fliplr(vdist(vmin_idx))]',[vmax(vmax_idx); flipud(vmin(vmin_idx))],...
                     seas_cmap(k,:),'FaceAlpha',fill_alpha,'EdgeColor','none'); hold on;
-                if k >= 2
+                if k >= 2 && sum(~isnan(v_mean))>0
                     pV(k-1) = plot(vdist(~isnan(v_mean))',v_mean(~isnan(v_mean)),'-','color',seas_cmap(k,:),'linewidth',2); hold on;
                 else
                     plot(vdist(~isnan(v_mean))',v_mean(~isnan(v_mean)),'-','color',seas_cmap(k,:),'linewidth',2); hold on;
@@ -516,8 +531,8 @@ for j = 1:length(MP)
 
     %format the site subplot in the speed figure
     if ~isempty(plot_ind)
-        figure(summaryfig); eval(['subplot(subH',num2str(j),');']); yyaxis right;
-        set(gca,'xlim',[0,25000],'xticklabel',[],'fontsize',12); drawnow;
+        figure(summaryfig); eval(['subplot(subH',num2str(geo_ind(l)),');']); yyaxis right;
+        set(gca,'xlim',[0,25000],'xticklabel',[],'fontsize',14); drawnow;
         % gca_pos = get(gca,'position');
         ylims = get(gca,'ylim'); set(gca,'ylim',[0 max(ylims)]);
         if max(ylims) <= 35
@@ -532,11 +547,12 @@ for j = 1:length(MP)
         if plot_locs(plot_ind) >= rows*cols - (cols-1)
             xticks = get(gca,'xtick'); set(gca,'xticklabel',xticks/1000); clear xticks;
             set(gca,'yticklabel',yticks);
-            xlabel('Distance from terminus (km)','fontsize',12);
+            xlabel('Distance from terminus (km)','fontsize',14);
             if plot_locs(plot_ind) == rows*cols
                 ax1.YAxis(2).Label.String = 'Speed (m/d)';
                 ax1.YAxis(2).Label.Position = [2.7559e4 550 -1];
-                % ylabel('Speed (m/d)','fontsize',12);
+                ax1.YAxis(2).Label.FontSize = 14;
+                % ylabel('Speed (m/d)','fontsize',14);
             end
         end
         clear ylims yticks;
@@ -704,6 +720,12 @@ for j = 1:length(MP)
 
         %add example date & site info to the scatterplot
         figure(missfig); 
+        %plot the same symbol as all 4 season colors to make a season legend
+        for k = 1:4
+            scat(k) = scatter(-res_Adated,100*packing_dated,240,'s','MarkerFaceColor',seas_cmap(k,:),...
+                'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
+        end
+        %plot the correct data
         scatter(-res_Adated,100*packing_dated,240,'s','MarkerFaceColor',seas_cmap(2,:),...
             'MarkerEdgeColor',seas_cmap(2,:),'LineWidth',1.5); hold on;
         clear *_dated;
@@ -727,9 +749,9 @@ for j = 1:length(MP)
     xlabel('Bergy bit misfit (% Area)','fontsize',16); ylabel('Packing density (%)','fontsize',16); 
     %format the bergy bit figure for all sites
     figure(missfig);
-    set(gca,'fontsize',12); grid on; drawnow;
+    set(gca,'fontsize',16); grid on; drawnow;
     set(gca,'xlim',[-1,1],'xtick',[-1:0.5:1],'xticklabel',[-100:50:100],'ylim',[0,100]);
-    xlabel('Bergy bit misfit (% Area)','fontsize',12); ylabel('Packing density (%)','fontsize',12); 
+    xlabel('Bergy bit misfit (% Area)','fontsize',16); ylabel('Packing density (%)','fontsize',16); 
     figure(sitefig);
     leg_pos = get(seas_leg,'Position')
     seas_leg.Position = [leg_pos(1), 0.95 leg_pos(3), leg_pos(4)]; clear leg_pos;
@@ -744,10 +766,10 @@ for j = 1:length(MP)
 
     %save the data and the figure
     save([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat'],'MP','-v7.3');
-    saveas(sitefig,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-speed-size_',num2str(Hcutoff),'m-Hthreshold_',num2str(vdtmin),'-',num2str(vdtmax),'dt-',vfilter,'-speeds_',sampling,'-profiles.png'],'png'); %save the plots
-    exportgraphics(sitefig,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-speed-size_',num2str(Hcutoff),'m-Hthreshold_',num2str(vdtmin),'-',num2str(vdtmax),'dt-',vfilter,'-speeds_',sampling,'-profiles.tif'],Resolution=600);
+    saveas(sitefig,[root_dir,site_abbrev,'/',site_abbrev,'-seasonal-speed-size_',num2str(Hcutoff),'m-Hthreshold_',num2str(vdtmin),'-',num2str(vdtmax),'dt-',vfilter,'-speeds_',sampling,'-profiles.png'],'png'); %save the plots
+    exportgraphics(sitefig,[root_dir,site_abbrev,'/',site_abbrev,'-seasonal-speed-size_',num2str(Hcutoff),'m-Hthreshold_',num2str(vdtmin),'-',num2str(vdtmax),'dt-',vfilter,'-speeds_',sampling,'-profiles.tif'],Resolution=600);
     % saveas(bergAfig,[root_dir,MP(j).name,'/',MP(j).name,'-seasonal-melange-properties_profiles.png'],'png'); %save the plots
-    disp(['Done with #',num2str(j),': ',MP(j).name]);
+    disp(['Done with #',num2str(j),': ',site_abbrev]);
     % % figure(sitefig);
     % % disp('Close the site figure to advance'); disp(' ');
     % % uiwait %advance only after figure is closed
@@ -763,7 +785,30 @@ for j = 1:length(MP)
     clear ax1 ax2;
 
 end
-figure(missfig); miss_leg = legend(pm,'terminus','10 km','20 km'); set(miss_leg,'location','southwest');
+figure(missfig); set(gca,'box','on','linewidth',1.5);
+xlims = get(gca,'xlim'); ylims = get(gca,'ylim');
+% miss_leg = legend(pm,'terminus','10 km','20 km'); set(miss_leg,'location','southwest');
+%spoof a legend for distance from the terminus so it includes both symbol types
+rectangle('position',[min(xlims)+0.05*range(xlims), min(ylims)+0.075*range(ylims),0.25*range(xlims),0.3*range(ylims)],'facecolor', ...
+    'w','edgecolor','k','linewidth',1.5);
+plot(min(xlims)+0.085*range(xlims), min(ylims)+0.18*range(ylims),...
+    's','MarkerSize',sqrt(240-18*log(1)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
+plot(min(xlims)+0.085*range(xlims), min(ylims)+0.135*range(ylims),...
+    's','MarkerSize',sqrt(240-18*log(10000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
+plot(min(xlims)+0.085*range(xlims), min(ylims)+0.10*range(ylims),...
+    's','MarkerSize',sqrt(240-18*log(20000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
+plot(min(xlims)+0.14*range(xlims), min(ylims)+0.18*range(ylims),...
+    'd','MarkerSize',sqrt(240-18*log(1)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
+plot(min(xlims)+0.14*range(xlims), min(ylims)+0.135*range(ylims),...
+    'd','MarkerSize',sqrt(240-18*log(10000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
+plot(min(xlims)+0.14*range(xlims), min(ylims)+0.10*range(ylims),...
+    'd','MarkerSize',sqrt(240-18*log(20000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
+text(min(xlims)+0.18*range(xlims),min(ylims)+0.185*range(ylims),['terminus'],'fontsize',14);
+text(min(xlims)+0.18*range(xlims),min(ylims)+0.14*range(ylims),['10 km'],'fontsize',14);
+text(min(xlims)+0.18*range(xlims),min(ylims)+0.1*range(ylims),['20 km'],'fontsize',14);
+text(min(xlims)+0.08*range(xlims),min(ylims)+0.22*range(ylims),['D<15 Gt yr^{-1}'],'fontsize',14,'rotation',45);
+text(min(xlims)+0.155*range(xlims),min(ylims)+0.22*range(ylims),['D>15 Gt yr^{-1}'],'fontsize',14,'rotation',45);
+missleg = legend(scat,season_names); missleg.Location = 'northeast';
 saveas(missfig,[root_dir,'GrIS-bergybit_',num2str(zcutoff),'m-zcutoff_scatterplot.png'],'png'); 
 exportgraphics(missfig,[root_dir,'GrIS-bergybit_',num2str(zcutoff),'m-zcutoff_scatterplot.tif'],Resolution=600);
 clear pm;
@@ -824,12 +869,15 @@ saveas(buttfig,[root_dir,'GrIS-melange_buttressing_',num2str(zcutoff),'m-zcutoff
 exportgraphics(buttfig,[root_dir,'GrIS-melange_buttressing_',num2str(zcutoff),'m-zcutoff_histograms.tif'],Resolution=600);
 
 
-%% plot terminus position timeseries scatterplots overlain by bar graphs of dated buttressing estimates
+%% plot figures that combine terminus position and buttressing observations
 % show the time-stamped buttressing estimates, noting that velocities can
 % come from before and after the elevation observations, alongside the
 % terminus position timeseries to see if they relate
 close all;
-load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+% load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
+% for j = 1:length(MP)
+%     saved_sites(j,:) = MP(j).name;
+% end
 
 %create a composite figure of subplots
 summaryfig = figure; set(summaryfig,'position',[-1650 50 900 1200]);
@@ -843,13 +891,25 @@ end
 termfig = figure; set(termfig,'position',[50 50 1800 600]);
 sub1 = subplot(1,2,1); sub2 = subplot(1,2,2);
 
+%create a figure that shows terminus change rates around buttressing
+%observations for sites with detailed time series
+dterm_6mo_fig = figure; set(dterm_6mo_fig,'position',[150 50 900 400]);
+dterm_3mo_fig = figure; set(dterm_3mo_fig,'position',[150 150 900 400]);
+dterm_1mo_fig = figure; set(dterm_1mo_fig,'position',[150 250 900 400]);
+dterm_inst_fig = figure; set(dterm_inst_fig,'position',[150 350 900 800]);
+
 %iterate, adding subplots to the composite & making individual site plots
 jams_sr = 0; jams_b = 0; %record the number of jamming events based on compressional strain rates & huge buttressing estimates
-dTdt_pre = []; dTdt_post = []; HT = []; BT = []; %dummy matrices for terminus change rates before & after thickness observations and the corresponding thickness & buttressing estimates
-Bseas_med = []; Bseas_mad = []; Hseas_med = []; Hseas_mad = []; Tseas_med = []; Tseas_mad = []; %dummy matrices for buttressing, thickness, and terminus position
-Iseas = []; Sseas = []; dTw = []; dTs = []; Bsp = []; %dummy matrices for the site index (I), season (S), & fall to spring terminus change (dTw) and spring to fall terminus change (dTs)
-for j = 1:length(MP)
-    if ~contains(MP(j).name,'KBG')
+dTw = []; dTs = []; Bsp = []; Bsu = []; %dummy matrices for fall to spring terminus change (dTw),spring to fall terminus change (dTs), and spring buttressing (Bsp)
+%create dummy vectors to hold seasonal data (individual profiles, not seasonal means)
+profs(1).H = NaN(1,50); profs(2).H = NaN(1,50); profs(3).H = NaN(1,50); profs(4).H = NaN(1,50); 
+profs(1).p = NaN(1,50); profs(2).p = NaN(1,50); profs(3).p = NaN(1,50); profs(4).p = NaN(1,50); 
+profs(1).V = NaN(1,50); profs(2).V = NaN(1,50); profs(3).V = NaN(1,50); profs(4).V = NaN(1,50); 
+for l = 1:length(sitenames)
+    %identify the index in the structure for the specified sitename
+    j = find(strcmp(string(saved_sites),sitenames(l,:)));
+
+    %specify site plotting conventions
     site_abbrev = MP(j).name; disp(site_abbrev);
     if ismember(MP(j).name,big3)
         symbol_shape = 'd';
@@ -916,9 +976,10 @@ for j = 1:length(MP)
             pack_profs(p,1:inland_idx(p)-1) = fliplr(packing(p,1:inland_idx(p)-1));
         end
     end
+    Hdist = MP(j).Z.dist; 
 
     %compile velocity profiles corresponding to the thickness profiles
-    vel_dir = [root_dir,sitenames(j,:),'/velocities/'];
+    vel_dir = [root_dir,site_abbrev,'/velocities/'];
     if contains(dvterm,'y')
         inland_vel = max(inland_idx); %grab data from the terminus
         ref_adjust = 1; %shift the referencing for the relative coordinate system
@@ -932,6 +993,73 @@ for j = 1:length(MP)
     dVdx = ((diff(vel_profs')'./dvdist_temp)/365);
     %add up apparent jamming events based on compressional strainrates
     if ~isempty(find(dVdx(:,1)<0)); jams_sr = jams_sr + numel(find(dVdx(:,1)<0)); end
+    
+    %add the profiles for thickness, packing density, and speed to the dummy matrices for each season
+    for p = 1:length(zdatetime)
+        %isolate seasonal time stamps
+        zyrs(p) = year(zdatetime(p)); zmos(p) = month(zdatetime(p));
+        [zseas(p),~] = ind2sub(size(seasons),find(seasons == zmos(p)));
+    end
+    %add to the structures
+    Hprofs_dist = [0:1000:49000]; 
+    if ~contains(site_abbrev,'ZIM')
+        Hdist = [0:nanmedian(diff(MP(j).Z.dist)):(size(H_profs,2)-1)*nanmedian(diff(MP(j).Z.dist))];
+
+        %pad profiles with NaNs on end so they are all the same length
+        Hprofs = [H_profs, NaN(size(H_profs,1),length(profs(1).H)-size(H_profs,2))];
+        pprofs = [pack_profs, NaN(size(H_profs,1),length(profs(1).H)-size(H_profs,2))];
+        % dvprofs = [dVdx, NaN(size(dVdx,1),length(profs(1).H)-size(dVdx,2))];
+        for p = 1:length(zdatetime)
+            vinterp = interp1(vdist,vel_profs(p,:),Hprofs_dist,'linear');
+            if zseas(p) == 1
+                profs(1).H = [profs(1).H; Hprofs(p,:)];
+                profs(1).p = [profs(1).p; pprofs(p,:)];
+                profs(1).V = [profs(1).V; vinterp];
+            elseif zseas(p) == 2
+                profs(2).H = [profs(2).H; Hprofs(p,:)];
+                profs(2).p = [profs(2).p; pprofs(p,:)];
+                profs(2).V = [profs(2).V; vinterp];
+            elseif zseas(p) == 3
+                profs(3).H = [profs(3).H; Hprofs(p,:)];
+                profs(3).p = [profs(3).p; pprofs(p,:)];
+                profs(3).V = [profs(3).V; vinterp];
+            else
+                profs(4).H = [profs(4).H; Hprofs(p,:)];
+                profs(4).p = [profs(4).p; pprofs(p,:)];
+                profs(4).V = [profs(4).V; vinterp];
+            end
+            clear vinterp;
+        end
+        clear Hprofs pprofs dvprofs;
+    else 
+        Hdist = [0:nanmedian(diff(MP(j).Z.dist)):(size(H_profs,2)-1)*nanmedian(diff(MP(j).Z.dist))];
+        for p = 1:length(zdatetime)
+            %interpolate profiles to 1 km interval (from 1.5 km interval) 
+            Hinterp = interp1(Hdist,H_profs(p,:),Hprofs_dist,'linear');
+            pinterp = interp1(Hdist,pack_profs(p,:),Hprofs_dist,'linear');
+            % dvinterp = interp1((vdist(1:end-1)+vdist(2:end))/2,dVdx(p,:),Hprofs_dist,'linear');
+            vinterp = interp1(vdist,vel_profs(p,:),Hprofs_dist,'linear');
+            if zseas(p) == 1
+                profs(1).H = [profs(1).H; Hinterp];
+                profs(1).p = [profs(1).p; pinterp];
+                profs(1).V = [profs(1).V; vinterp];
+            elseif zseas(p) == 2
+                profs(2).H = [profs(2).H; Hinterp];
+                profs(2).p = [profs(2).p; pinterp];
+                profs(2).V = [profs(2).V; vinterp];
+            elseif zseas(p) == 3
+                profs(3).H = [profs(3).H; Hinterp];
+                profs(3).p = [profs(3).p; pinterp];
+                profs(3).V = [profs(3).V; vinterp];
+            else
+                profs(4).H = [profs(4).H; Hinterp];
+                profs(4).p = [profs(4).p; pinterp];
+                profs(4).V = [profs(4).V; vinterp];
+            end
+            clear Hinterp pinterp dvinterp;
+        end
+    end
+    clear Hdist;
 
     %filter crazy terminus delineations
     dTdt = diff(term_pos_sorted)./diff(term_decidates_sorted);
@@ -950,16 +1078,27 @@ for j = 1:length(MP)
     term_anoms = find(dTdt > 5*nanmedian(vel_profs(:,1))); %find terminus dates where the next position is way advanced
     bad_flag = []; 
     for k = 1:length(term_anoms)
-        if dTdt(term_anoms(k)-1) < -5*nanmedian(vel_profs(:,1)) %if the previous change was also a big retreat, its a dip to remove
-            bad_flag = [bad_flag; term_anoms(k)];
-        elseif dTdt(term_anoms(k)+1) < -5*nanmedian(vel_profs(:,1)) %if the next change was also a big retreat, its a jump to remove
-            bad_flag = [bad_flag; term_anoms(k)+1];
+        if term_anoms(k) == 1
+            bad_flag = [bad_flag; term_anoms(k)]; 
+        elseif term_anoms(k) > 1 && term_anoms(k) < length(dTdt)
+            if dTdt(term_anoms(k)-1) < -5*nanmedian(vel_profs(:,1)) %if the previous change was also a big retreat, its a dip to remove
+                bad_flag = [bad_flag; term_anoms(k)];
+            elseif dTdt(term_anoms(k)+1) < -5*nanmedian(vel_profs(:,1)) %if the next change was also a big retreat, its a jump to remove
+                bad_flag = [bad_flag; term_anoms(k)+1];
+            end
+        else
+            if dTdt(term_anoms(k)-1) < -5*nanmedian(vel_profs(:,1)) %if the previous change was also a big retreat, its a dip to remove
+                bad_flag = [bad_flag; term_anoms(k)];
+            end
         end
     end
     term_decidates_sorted(bad_flag) = []; term_seas_sorted(bad_flag) = [];
     term_dists_sorted(bad_flag) = []; term_pos_sorted(bad_flag) = []; clear term_anoms bad_flag dTdt;
 
     %calculate buttressing for each observation
+    dTdt_6mo_pre = []; dTdt_6mo_post = []; dTdt_3mo_pre = []; dTdt_3mo_post = []; dTdt_1mo_pre = []; dTdt_1mo_post = []; dTdt_pre = []; dTdt_post = []; %dummy matrices for for terminus change rates before & after thickness observations
+    seas_6mo_pre = []; seas_6mo_post = [];
+    HT = []; BT = []; dBT_pre = []; dBT_post = []; %dummy matrices for thickness & buttressing estimates
     for p = 1:size(Havg,1)
         HT = [HT; H_profs(p,1)]; 
         press = 0.5*rho_i*(1-(rho_i/rho_sw))*9.81*H_profs(p,1);
@@ -967,69 +1106,343 @@ for j = 1:length(MP)
         butt_Amundson(p) = (-2*(H_profs(p,1)*press*dVdx(p,1))/((dVdx(p,1)/0.3)+dVdx(p,1)))+press*H_profs(p,1);
         clear press dvdist_temp;
 
-        %terminus change rates before & after buttressing estimate
+        %calculate terminus position change for a few different time periods
+        %relative to each buttressing observation: +/-6 mo, +/-3 mo, +/-1 mo, &
+        %between buttressing observations
+        %NOTE: minus sign is to make advance positive
         if term_trace(p) == 1
-            before_idx = find(term_decidates_sorted<zdate(p),1,'last');
-            after_idx = find(term_decidates_sorted>zdate(p),1,'first');
-            dTdt_pre = [dTdt_pre; (-(MP(j).Z.termdist(p)-term_dists_sorted(before_idx))/abs(zdate(p)-term_decidates_sorted(before_idx)))/365];
-            dTdt_post = [dTdt_post; ((MP(j).Z.termdist(p)-term_dists_sorted(after_idx))/abs(zdate(p)-term_decidates_sorted(after_idx)))/365];
+            %6 mo
+            before_idx = find(term_decidates_sorted>zdate(p)-0.5 & term_decidates_sorted<zdate(p));
+            after_idx = find(term_decidates_sorted>zdate(p) & term_decidates_sorted<zdate(p)+0.5);
+            if ~isempty(before_idx)
+                dTdt_6mo_pre = [dTdt_6mo_pre; -((MP(j).Z.termdist(p)-term_dists_sorted(before_idx(1)))/abs(zdate(p)-term_decidates_sorted(before_idx(1))))/365]; 
+            else
+                dTdt_6mo_pre = [dTdt_6mo_pre; NaN];
+            end
+            if ~isempty(after_idx)
+                dTdt_6mo_post = [dTdt_6mo_post; -((term_dists_sorted(after_idx(end))-MP(j).Z.termdist(p))/abs(term_decidates_sorted(after_idx(end))-zdate(p)))/365]; 
+            else
+                dTdt_6mo_post = [dTdt_6mo_post; NaN];
+            end
+            seas_6mo_pre = [seas_6mo_pre; zseas(p)]; seas_6mo_post = [seas_6mo_post; zseas(p)]; 
             clear *_idx;
+
+            %3 mo
+            before_idx = find(term_decidates_sorted>zdate(p)-0.25 & term_decidates_sorted<zdate(p));
+            after_idx = find(term_decidates_sorted>zdate(p) & term_decidates_sorted<zdate(p)+0.25);
+            if ~isempty(before_idx)
+                dTdt_3mo_pre = [dTdt_3mo_pre; -((MP(j).Z.termdist(p)-term_dists_sorted(before_idx(1)))/abs(zdate(p)-term_decidates_sorted(before_idx(1))))/365]; 
+            else
+                dTdt_3mo_pre = [dTdt_3mo_pre; NaN];
+            end
+            if ~isempty(after_idx)
+                dTdt_3mo_post = [dTdt_3mo_post; -((term_dists_sorted(after_idx(end))-MP(j).Z.termdist(p))/abs(term_decidates_sorted(after_idx(end))-zdate(p)))/365]; 
+            else
+                dTdt_3mo_post = [dTdt_3mo_post; NaN];
+            end
+            clear *_idx;
+
+            %1 mo
+            before_idx = find(term_decidates_sorted>zdate(p)-0.0833 & term_decidates_sorted<zdate(p));
+            after_idx = find(term_decidates_sorted>zdate(p) & term_decidates_sorted<zdate(p)+0.0833);
+            if ~isempty(before_idx)
+                dTdt_1mo_pre = [dTdt_1mo_pre; -((MP(j).Z.termdist(p)-term_dists_sorted(before_idx(1)))/abs(zdate(p)-term_decidates_sorted(before_idx(1))))/365]; 
+            else
+                dTdt_1mo_pre = [dTdt_1mo_pre; NaN];
+            end
+            if ~isempty(after_idx)
+                dTdt_1mo_post = [dTdt_1mo_post; -((term_dists_sorted(after_idx(end))-MP(j).Z.termdist(p))/abs(term_decidates_sorted(after_idx(end))-zdate(p)))/365]; 
+            else
+                dTdt_1mo_post = [dTdt_1mo_post; NaN];
+            end
+            clear *_idx;
+
+            %between melange observations
+            if p > 1
+                dTdt_pre = [dTdt_pre; -((MP(j).Z.termdist(p)-MP(j).Z.termdist(p-1))/abs(zdate(p)-zdate(p-1)))/365]; 
+            else
+                dTdt_pre = [dTdt_pre; NaN];
+            end
+            if p < size(Havg,1)
+                dTdt_post = [dTdt_post; -((MP(j).Z.termdist(p+1)-MP(j).Z.termdist(p))/abs(zdate(p+1)-zdate(p)))/365]; 
+            else
+                dTdt_post = [dTdt_post; NaN];
+            end
+
         else
-            dTdt_pre = [dTdt_pre; NaN];
-            dTdt_post = [dTdt_post; NaN];
+            dTdt_6mo_pre = [dTdt_6mo_pre; NaN]; dTdt_6mo_post = [dTdt_6mo_post; NaN];
+            seas_6mo_pre = [seas_6mo_pre; NaN]; seas_6mo_post = [seas_6mo_post; NaN]; 
+            dTdt_3mo_pre = [dTdt_3mo_pre; NaN]; dTdt_3mo_post = [dTdt_3mo_post; NaN];
+            dTdt_1mo_pre = [dTdt_1mo_pre; NaN]; dTdt_1mo_post = [dTdt_1mo_post; NaN];
+            dTdt_pre = [dTdt_pre; NaN]; dTdt_post = [dTdt_post; NaN];
         end
 
     end
+    dBT_pre = [NaN; BT(2:end)-BT(1:end-1)]; dBT_post = [BT(2:end)-BT(1:end-1); NaN];
+
+    %plot the buttressing & terminus change data for ASG & ZIM
+    if contains(site_abbrev,'ASG') || contains(site_abbrev,'ZIM')
+        %specify outlier percentile thresholds & marker sizes
+        outlier_percs = [1,99]; good_size = 50; bad_size = 25;
+
+        %specify plot limits
+        xlims = [0, 2]; %buttressing range (10^6 N/m)
+        if contains(site_abbrev,'ASG')
+            ylims = [-40, 40]; yticks = [-40:20:40]; %terminus change rate range (m/d)
+        else
+            ylims = [-240, 240]; yticks = [-240:80:240]; %terminus change rate range (m/d)
+        end
+
+        %plot terminus change +/-6 mo from buttressing obs v buttressing
+        figure(dterm_6mo_fig);
+        %before
+        if contains(site_abbrev,'ASG'); subplot(1,2,1); else; subplot(1,2,2); end
+        for k = 1:4
+            sp(k) = scatter(BT(1)/10^6,dTdt_6mo_pre(1),good_size,seas_cmap(k,:),'filled',symbol_shape); hold on;
+        end
+        % scatter(BT/10^6,dTdt_6mo_pre,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        scatter(BT/10^6,dTdt_6mo_pre,good_size,seas_cmap(zseas,:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        dTdtf = isoutlier(dTdt_6mo_pre,"percentiles",outlier_percs);
+        % scatter(BT(~isnan(dTdt_6mo_pre) & ~dTdtf)/10^6,dTdt_6mo_pre(~isnan(dTdt_6mo_pre) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_6mo_pre) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        [f,gof] = fit(BT(~isnan(dTdt_6mo_pre) & ~dTdtf)/10^6,dTdt_6mo_pre(~isnan(dTdt_6mo_pre) & ~dTdtf),'poly1');
+        disp(['Change in terminus change rate with buttressing = ',num2str(f.p1),' m/d per 10^6 N/m']);
+        disp(['R^2 btw term change rate 6 mo before & buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        if gof.rsquare > 0.5; plot([min(BT) max(BT)]/10^6,feval(f,[min(BT) max(BT)]/10^6),'--k'); end
+        % set(gca,'fontsize',16,'xlim',xlims,'xticklabel',[],'ylim',ylims,'ytick',yticks,'box','on'); grid on;
+        if contains(site_abbrev,'ASG')
+            % text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'a) 6 months prior','fontsize',14);
+            text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'a) Nunatakassaap','fontsize',16);
+            ylabel('Terminus change rate (m/d)','fontsize',16);
+            sp_leg = legend(sp,season_names,'location','northoutside','orientation','horizontal','fontsize',16); sp_leg.Position = [0.43 0.93 0.2 0.05];
+            pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)+0.03 1.1*pos(3) 0.75]);
+        else
+            % text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['b) 6 months prior'],'fontsize',14);
+            text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['b) Zachari',char(230),' Isstr',char(248),'m'],'fontsize',16);
+            pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)+0.03 1.1*pos(3) 0.75]);
+        end
+        clear dTdtf f gof;
+        % %after 
+        % if contains(site_abbrev,'ASG'); subplot(2,2,3); else; subplot(2,2,4); end
+        % scatter(BT/10^6,dTdt_6mo_post,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        % dTdtf = isoutlier(dTdt_6mo_post,"percentiles",outlier_percs);
+        % scatter(BT(~isnan(dTdt_6mo_post) & ~dTdtf)/10^6,dTdt_6mo_post(~isnan(dTdt_6mo_post) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_6mo_post) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        % [f,gof] = fit(BT(~isnan(dTdt_6mo_post) & ~dTdtf)/10^6,dTdt_6mo_post(~isnan(dTdt_6mo_post) & ~dTdtf),'poly1');
+        % disp(['R^2 btw term change rate 6 mo after & buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        % if gof.rsquare > 0.5; plot([min(BT) max(BT)]/10^6,feval(f,[min(BT) max(BT)]/10^6),'--k'); end
+        set(gca,'fontsize',16,'xlim',xlims,'ylim',ylims,'ytick',yticks,'box','on'); xlabel('Buttressing (10^6 N/m)','fontsize',16); grid on; clear dTdtf f gof;
+        % if contains(site_abbrev,'ASG')
+        %     text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'c) 6 months after','fontsize',14);
+        %     ylabel('Terminus change rate (m/d)','fontsize',16); 
+        % else
+        %     text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['d) 6 months after'],'fontsize',14);
+        %     annotation(dterm_6mo_fig,'textbox',[0.24,0.9,0.2,0.05],'string','Nunatakassaap','edgecolor','none','fontsize',16);
+        %     annotation(dterm_6mo_fig,'textbox',[0.69,0.9,0.2,0.05],'string',['Zachari',char(230),' Isstr',char(248),'m'],'edgecolor','none','fontsize',16);
+        % end
+        % clear dTdtf f gof;
+        % pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.1*pos(3) 1.1*pos(4)]);
+
+        %for 6 month dataset, calculate fits & percent retreating
+        %observations for just the spring
+        bigB_ind = find(BT>=0.5e6); smallB_ind = find(BT<0.5e6); 
+        bigB_dTdt = dTdt_6mo_pre(bigB_ind); smallB_dTdt = dTdt_6mo_pre(smallB_ind); 
+        disp(['Fraction with net advance for low buttressing = ',num2str(numel(smallB_dTdt(smallB_dTdt>0))/numel(smallB_dTdt))]);
+        disp(['Fraction with net advance for high buttressing = ',num2str(numel(bigB_dTdt(bigB_dTdt>0))/numel(bigB_dTdt))]);
+        clear bigB* smallB*;
+        BT_sub = BT(zseas(~isnan(dTdt_6mo_pre))==2); dTdt_6mo_pre_sub = dTdt_6mo_pre(zseas(~isnan(dTdt_6mo_pre))==2);
+        dTdtf = isoutlier(dTdt_6mo_pre_sub,"percentiles",outlier_percs); 
+        [f,gof] = fit(BT_sub(~isnan(dTdt_6mo_pre_sub) & ~dTdtf)/10^6,dTdt_6mo_pre_sub(~isnan(dTdt_6mo_pre_sub) & ~dTdtf),'poly1');
+        disp(['Change in terminus change rate with SPRING buttressing = ',num2str(f.p1),' m/d per 10^6 N/m']);
+        disp(['R^2 btw term change rate 6 mo before & SPRING buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        bigB_ind = find(BT(zseas == 2)>=0.5e6); smallB_ind = find(BT(zseas == 2)<0.5e6); 
+        bigB_dTdt = dTdt_6mo_pre(zseas == 2); bigB_dTdt = bigB_dTdt(bigB_ind); 
+        smallB_dTdt = dTdt_6mo_pre(zseas == 2); smallB_dTdt = smallB_dTdt(smallB_ind); 
+        disp(['Fraction with net advance for low SPRING buttressing = ',num2str(numel(smallB_dTdt(smallB_dTdt>0))/numel(smallB_dTdt))]);
+        disp(['Fraction with net advance for high SPRING buttressing = ',num2str(numel(bigB_dTdt(bigB_dTdt>0))/numel(bigB_dTdt))]);
+        clear BT_sub dTdt_*_sub bigB* smallB*;
+
+
+        %plot terminus change +/-3 mo from buttressing obs v buttressing
+        figure(dterm_3mo_fig);
+        %before
+        if contains(site_abbrev,'ASG'); subplot(1,2,1); else; subplot(1,2,2); end
+        % scatter(BT/10^6,dTdt_3mo_pre,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        scatter(BT/10^6,dTdt_3mo_pre,good_size,seas_cmap(zseas,:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        dTdtf = isoutlier(dTdt_3mo_pre,"percentiles",outlier_percs);
+        % scatter(BT(~isnan(dTdt_3mo_pre) & ~dTdtf)/10^6,dTdt_3mo_pre(~isnan(dTdt_3mo_pre) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_3mo_pre) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        [f,gof] = fit(BT(~isnan(dTdt_3mo_pre) & ~dTdtf)/10^6,dTdt_3mo_pre(~isnan(dTdt_3mo_pre) & ~dTdtf),'poly1');
+        disp(['Change in terminus change rate with buttressing = ',num2str(f.p1),' m/d per 10^6 N/m']);
+        disp(['R^2 btw term change rate 3 mo before & buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        if gof.rsquare > 0.5; plot([min(BT) max(BT)]/10^6,feval(f,[min(BT) max(BT)]/10^6),'--k'); end
+        % set(gca,'fontsize',16,'xlim',xlims,'xticklabel',[],'ylim',ylims,'ytick',yticks,'box','on'); grid on; clear dTdtf f gof;
+        if contains(site_abbrev,'ASG')
+            % text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'a) 3 months prior','fontsize',14);
+            text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'a) Nunatakassaap','fontsize',16);
+            ylabel('Terminus change rate (m/d)','fontsize',16); 
+        else
+            % text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['b) 3 months prior'],'fontsize',14);
+            text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['b) Zachari',char(230),' Isstr',char(248),'m'],'fontsize',16);
+        end
+        clear dTdtf f gof;
+        pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)+0.02 1.1*pos(3) pos(4)]);
+        % %after 
+        % if contains(site_abbrev,'ASG'); subplot(2,2,3); else; subplot(2,2,4); end
+        % scatter(BT/10^6,dTdt_3mo_post,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        % dTdtf = isoutlier(dTdt_3mo_post,"percentiles",outlier_percs);
+        % scatter(BT(~isnan(dTdt_3mo_post) & ~dTdtf)/10^6,dTdt_3mo_post(~isnan(dTdt_3mo_post) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_3mo_post) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        % [f,gof] = fit(BT(~isnan(dTdt_3mo_post) & ~dTdtf)/10^6,dTdt_3mo_post(~isnan(dTdt_3mo_post) & ~dTdtf),'poly1');
+        % disp(['R^2 btw term change rate 3 mo after & buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        % if gof.rsquare > 0.5; plot([min(BT) max(BT)]/10^6,feval(f,[min(BT) max(BT)]/10^6),'--k'); end
+        set(gca,'fontsize',16,'xlim',xlims,'ylim',ylims,'ytick',yticks,'box','on'); xlabel('Buttressing (10^6 N/m)','fontsize',16); grid on; clear dTdtf f gof;
+        % if contains(site_abbrev,'ASG')
+        %     text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'c) 3 months after','fontsize',14);
+        %     ylabel('Terminus change rate (m/d)','fontsize',16); 
+        % else
+        %     text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['d) 3 months after'],'fontsize',14);
+        %     annotation(dterm_3mo_fig,'textbox',[0.24,0.9,0.2,0.05],'string','Nunatakassaap','edgecolor','none','fontsize',16);
+        %     annotation(dterm_3mo_fig,'textbox',[0.69,0.9,0.2,0.05],'string',['Zachari',char(230),' Isstr',char(248),'m'],'edgecolor','none','fontsize',16);
+        % end
+        % clear dTdtf f gof;
+        % pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.1*pos(3) 1.1*pos(4)]);
+
+        %plot terminus change +/-1 mo from buttressing obs v buttressing
+        figure(dterm_1mo_fig);
+        %before
+        if contains(site_abbrev,'ASG'); subplot(1,2,1); else; subplot(1,2,2); end
+        % scatter(BT/10^6,dTdt_1mo_pre,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        scatter(BT/10^6,dTdt_1mo_pre,good_size,seas_cmap(zseas,:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        dTdtf = isoutlier(dTdt_1mo_pre,"percentiles",outlier_percs);
+        % scatter(BT(~isnan(dTdt_1mo_pre) & ~dTdtf)/10^6,dTdt_1mo_pre(~isnan(dTdt_1mo_pre) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_1mo_pre) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        [f,gof] = fit(BT(~isnan(dTdt_1mo_pre) & ~dTdtf)/10^6,dTdt_1mo_pre(~isnan(dTdt_1mo_pre) & ~dTdtf),'poly1');
+        disp(['Change in terminus change rate with buttressing = ',num2str(f.p1),' m/d per 10^6 N/m']);
+        disp(['R^2 btw term change rate 1 mo before & buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        if gof.rsquare > 0.5; plot([min(BT) max(BT)]/10^6,feval(f,[min(BT) max(BT)]/10^6),'--k'); end
+        % set(gca,'fontsize',16,'xlim',xlims,'xticklabel',[],'ylim',ylims,'ytick',yticks,'box','on'); grid on; clear dTdtf f gof;
+        if contains(site_abbrev,'ASG')
+            % text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'a) 1 month prior','fontsize',14);
+            text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'a) Nunatakassaap','fontsize',16);
+            ylabel('Terminus change rate (m/d)','fontsize',16); 
+        else
+            % text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['b)
+            % 1 month prior'],'fontsize',14);e
+            text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['b) Zachari',char(230),' Isstr',char(248),'m'],'fontsize',16);
+        end
+        clear dTdtf f gof;
+        pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)+0.02 1.1*pos(3) pos(4)]);
+        % %after 
+        % if contains(site_abbrev,'ASG'); subplot(2,2,3); else; subplot(2,2,4); end
+        % scatter(BT/10^6,dTdt_1mo_post,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        % dTdtf = isoutlier(dTdt_1mo_post,"percentiles",outlier_percs);
+        % scatter(BT(~isnan(dTdt_1mo_post) & ~dTdtf)/10^6,dTdt_1mo_post(~isnan(dTdt_1mo_post) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_1mo_post) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        % [f,gof] = fit(BT(~isnan(dTdt_1mo_post) & ~dTdtf)/10^6,dTdt_1mo_post(~isnan(dTdt_1mo_post) & ~dTdtf),'poly1');
+        % disp(['R^2 btw term change rate 1 mo after & buttressing = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        % if gof.rsquare > 0.5; plot([min(BT) max(BT)]/10^6,feval(f,[min(BT) max(BT)]/10^6),'--k'); end
+        set(gca,'fontsize',16,'xlim',xlims,'ylim',ylims,'ytick',yticks,'box','on'); xlabel('Buttressing (10^6 N/m)','fontsize',16); grid on; clear dTdtf f gof;
+        % if contains(site_abbrev,'ASG')
+        %     text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),'c) 1 month after','fontsize',14);
+        %     ylabel('Terminus change rate (m/d)','fontsize',16); 
+        % else
+        %     text(min(xlims)+0.025*range(xlims),min(ylims)+0.95*range(ylims),['d) 1 month after'],'fontsize',14);
+        %     annotation(dterm_1mo_fig,'textbox',[0.24,0.9,0.2,0.05],'string','Nunatakassaap','edgecolor','none','fontsize',16);
+        %     annotation(dterm_1mo_fig,'textbox',[0.69,0.9,0.2,0.05],'string',['Zachari',char(230),' Isstr',char(248),'m'],'edgecolor','none','fontsize',16);
+        % end
+        % clear dTdtf f gof;
+        % pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.1*pos(3) 1.1*pos(4)]);
+
+        %plot terminus change between buttressing obs v buttressing change
+        figure(dterm_inst_fig);
+        %before
+        if contains(site_abbrev,'ASG'); subplot(2,2,1); else; subplot(2,2,2); end
+        scatter(dBT_pre/10^6,dTdt_pre,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        dTdtf = isoutlier(dTdt_pre,"percentiles",outlier_percs);
+        scatter(dBT_pre(~isnan(dTdt_pre) & ~dTdtf)/10^6,dTdt_pre(~isnan(dTdt_pre) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_pre) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        [f,gof] = fit(dBT_pre(~isnan(dTdt_pre) & ~dTdtf & ~isnan(dBT_pre))/10^6,dTdt_pre(~isnan(dTdt_pre) & ~dTdtf & ~isnan(dBT_pre)),'poly1');
+        disp(['R^2 btw term change rate immediately before & buttressing change = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        if gof.rsquare > 0.5; plot([min(dBT_pre) max(dBT_pre)]/10^6,feval(f,[min(dBT_pre) max(dBT_pre)]/10^6),'--k'); end
+        set(gca,'fontsize',16,'xlim',[-max(xlims),max(xlims)],'xticklabel',[],'ylim',ylims,'box','on'); grid on; clear dTdtf f gof;
+        if contains(site_abbrev,'ASG')
+            text(-max(xlims)+0.05*range(xlims),min(ylims)+0.95*range(ylims),'a) since last DEM','fontsize',14);
+            ylabel('Terminus change rate (m/d)','fontsize',16); 
+        else
+            text(-max(xlims)+0.05*range(xlims),min(ylims)+0.95*range(ylims),['b) since last DEM'],'fontsize',14);
+        end
+        clear dTdtf f gof;
+        pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)-0.05 1.1*pos(3) 1.1*pos(4)]);
+        %after 
+        if contains(site_abbrev,'ASG'); subplot(2,2,3); else; subplot(2,2,4); end
+        scatter(dBT_post/10^6,dTdt_post,bad_size,seas_cmap(zseas,:),'filled',symbol_shape); hold on;
+        dTdtf = isoutlier(dTdt_post,"percentiles",outlier_percs);
+        scatter(dBT_post(~isnan(dTdt_post) & ~dTdtf)/10^6,dTdt_post(~isnan(dTdt_post) & ~dTdtf),good_size,seas_cmap(zseas(~isnan(dTdt_post) & ~dTdtf),:),'filled',symbol_shape,'markeredgecolor','k'); hold on; 
+        [f,gof] = fit(dBT_post(~isnan(dTdt_post) & ~dTdtf & ~isnan(dBT_post))/10^6,dTdt_post(~isnan(dTdt_post) & ~dTdtf & ~isnan(dBT_post)),'poly1');
+        disp(['R^2 btw term change rate immediately after & buttressing change = ',num2str(gof.rsquare),' (',num2str(sum(dTdtf)),' outliers)']);
+        if gof.rsquare > 0.5; plot([min(dBT_post) max(dBT_post)]/10^6,feval(f,[min(dBT_post) max(dBT_post)]/10^6),'--k'); end
+        set(gca,'fontsize',16,'xlim',[-max(xlims),max(xlims)],'ylim',ylims,'box','on'); xlabel('Buttressing change (10^6 N/m)','fontsize',16); grid on; clear dTdtf f gof;
+        if contains(site_abbrev,'ASG')
+            text(-max(xlims)+0.05*range(xlims),min(ylims)+0.95*range(ylims),'c) until next DEM','fontsize',14);
+            ylabel('Terminus change rate (m/d)','fontsize',16); 
+        else
+            text(-max(xlims)+0.05*range(xlims),min(ylims)+0.95*range(ylims),['d) until next DEM'],'fontsize',14);
+            annotation(dterm_inst_fig,'textbox',[0.24,0.9,0.2,0.05],'string','Nunatakassaap','edgecolor','none','fontsize',16);
+            annotation(dterm_inst_fig,'textbox',[0.69,0.9,0.2,0.05],'string',['Zachari',char(230),' Isstr',char(248),'m'],'edgecolor','none','fontsize',16);
+        end
+        clear dTdtf f gof;
+        pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.1*pos(3) 1.1*pos(4)]);
+
+        %save the figures
+        saveas(dterm_6mo_fig,[root_dir,'GrIS-melange_6mo-termchange-buttressing_',num2str(zcutoff),'m-zcutoff_scatterplots.png'],'png');
+        exportgraphics(dterm_6mo_fig,[root_dir,'GrIS-melange_6mo-termchange-buttressing_',num2str(zcutoff),'m-zcutoff_scatterplots.tif'],Resolution=600);
+        saveas(dterm_3mo_fig,[root_dir,'GrIS-melange_3mo-termchange-buttressing_',num2str(zcutoff),'m-zcutoff_scatterplots.png'],'png');
+        exportgraphics(dterm_3mo_fig,[root_dir,'GrIS-melange_3mo-termchange-buttressing_',num2str(zcutoff),'m-zcutoff_scatterplots.tif'],Resolution=600);
+        saveas(dterm_1mo_fig,[root_dir,'GrIS-melange_1mo-termchange-buttressing_',num2str(zcutoff),'m-zcutoff_scatterplots.png'],'png');
+        exportgraphics(dterm_1mo_fig,[root_dir,'GrIS-melange_1mo-termchange-buttressing_',num2str(zcutoff),'m-zcutoff_scatterplots.tif'],Resolution=600);
+        saveas(dterm_inst_fig,[root_dir,'GrIS-melange_termchange-buttressingchange_',num2str(zcutoff),'m-zcutoff_scatterplots.png'],'png');
+        exportgraphics(dterm_inst_fig,[root_dir,'GrIS-melange_termchange-buttressingchange_',num2str(zcutoff),'m-zcutoff_scatterplots.tif'],Resolution=600);
+        % clear dtermfig;
+    end
+
     %add up apparent jamming events based on buttressing
     if ~isempty(find(butt_Meng>1e7)); jams_b = jams_b + numel(find(butt_Meng>1e7)); end
 
     %compile thickness and buttressing data for each year
+    Bseas_med = []; Bseas_mad = []; Hseas_med = []; Hseas_mad = []; Tseas_med = []; Tseas_mad = []; %dummy matrices for buttressing, thickness, and terminus position
+    Iseas = []; Sseas = []; %dummy matrices for the site index (I), season (S)
     for p = 1:length(years)
-        Iseas = [Iseas; repmat(j,4,1)]; Sseas = [Sseas; 1; 2; 3; 4]; 
+        Iseas = [Iseas; repmat(j,1,4)]; Sseas = [Sseas; 1 2 3 4]; 
 
         %compile buttressing and associated terminus position and thickness data
         yr_idx = find(zyrs == years(p));
+        Bmed = NaN(1,4); Bmad = NaN(1,4); Hmed = NaN(1,4); Hmad = NaN(1,4); Tmed = NaN(1,4); Tmad = NaN(1,4); 
         if ~isempty(yr_idx)
             mos_yr = zmos(yr_idx);
             for k = 1:4
                 %data for each season (if it exists, NaN if not)
                 if sum(ismember(mos_yr,seasons(k,:))) > 0
-                    Bseas_med = [Bseas_med; median(butt_Meng(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing")];
-                    Bseas_mad = [Bseas_mad; mad(butt_Meng(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all")];
-                    Hseas_med = [Hseas_med; median(HT(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing")];
-                    Hseas_mad = [Hseas_mad; mad(HT(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all")];
-                    Tseas_med = [Tseas_med; median(MP(j).Z.termdist(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing")];
-                    Tseas_mad = [Tseas_mad; mad(MP(j).Z.termdist(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all")];
-                else
-                    Bseas_med = [Bseas_med; NaN];
-                    Bseas_mad = [Bseas_mad; NaN];
-                    Hseas_med = [Hseas_med; NaN];
-                    Hseas_mad = [Hseas_mad; NaN];
-                    Tseas_med = [Tseas_med; NaN];
-                    Tseas_mad = [Tseas_mad; NaN];
+                    Bmed(k) = median(butt_Meng(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing");
+                    Bmad(k) = mad(butt_Meng(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all");
+                    Hmed(k) = median(HT(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing");
+                    Hmad(k) = mad(HT(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all");
+                    Tmed(k) = max(term_dists(term_decidates>min(years))) - median(MP(j).Z.termdist(yr_idx(ismember(mos_yr,seasons(k,:))==1)),"all","omitmissing");
+                    Tmad(k) = mad(MP(j).Z.termdist(yr_idx(ismember(mos_yr,seasons(k,:))==1)),1,"all");
                 end
-                %isolate spring data for ease
-                if k == 2; Bsp = [Bsp; Bseas_med(end)]; end 
             end
-        else
-            Bseas_med = [Bseas_med; NaN([4,1])];
-            Bseas_mad = [Bseas_mad; NaN([4,1])];
-            Hseas_med = [Hseas_med; NaN([4,1])];
-            Hseas_mad = [Hseas_mad; NaN([4,1])];
-            Tseas_med = [Tseas_med; NaN([4,1])];
-            Tseas_mad = [Tseas_mad; NaN([4,1])];
-            Bsp = [Bsp; NaN];
         end
+        Bseas_med = [Bseas_med; Bmed];
+        Bseas_mad = [Bseas_mad; Bmad];
+        Hseas_med = [Hseas_med; Hmed];
+        Hseas_mad = [Hseas_mad; Hmad];
+        Tseas_med = [Tseas_med; Tmed];
+        Tseas_mad = [Tseas_mad; Tmad];
+        Bsp = [Bsp; Bmed(2)]; Bsu = [Bsu; Bmed(3)];
         clear yr_idx mos_yr;
 
         %compile terminus position change for the preceding winter and
-        %subsequent summer
+        %subsequent summer: uses POSITION relative to the terminus, which
+        %is the max(distance) - distance, not the distance like in the monthly calculations above
         prevyr_idx = find(floor(term_decidates_sorted) == years(p)-1);
         curryr_idx = find(floor(term_decidates_sorted) == years(p)); currsp_idx = find(term_seas_sorted(curryr_idx)==2);
-        [prevT_min,prevT_min_idx] = min(term_pos_sorted(prevyr_idx));
-        % currT_max = median(term_pos_sorted(curryr_idx(currsp_idx)),"all","omitmissing");
-        [currT_max,currT_max_idx] = max(term_pos_sorted(curryr_idx(currsp_idx)));
-        currT_min = min(term_pos_sorted(curryr_idx));
+        [prevT_min,prevT_min_idx] = min(term_pos_sorted(prevyr_idx)); % minimum (most retreated) terminus position for previous year
+        % [currT_max,currT_max_idx] = max(term_pos_sorted(curryr_idx(currsp_idx))); % maximum (most advanced) SPRING terminus position for current year
+        currT_max = Tseas_med(p,2);
+        currT_min = min(term_pos_sorted(curryr_idx)); % minimum (most retreated) terminus position for current year
         dTw_temp = currT_max-prevT_min; if isempty(dTw_temp); dTw_temp = NaN; end
         dTs_temp = currT_min - currT_max; if isempty(dTs_temp); dTs_temp = NaN; end
         dTw = [dTw; dTw_temp]; dTs = [dTs; dTs_temp]; %advance > 0, retreat < 0
@@ -1120,16 +1533,16 @@ for j = 1:length(MP)
             'Orientation','horizontal');
 
     %save the figure
-    saveas(ts_fig,[root_dir,MP(j).name,'/',MP(j).name,'-terminus-buttressing_',num2str(zcutoff),'m-zcutoff_timeseries.png'],'png'); %save the plots
+    saveas(ts_fig,[root_dir,site_abbrev,'/',site_abbrev,'-terminus-buttressing_',num2str(zcutoff),'m-zcutoff_timeseries.png'],'png'); %save the plots
     clear axr; close(ts_fig);
     % uiwait %advance only after figure is closed
 
 
     %add the data to the composite figure
-    figure(summaryfig); plot_ind = find(geo_ind == j);
+    figure(summaryfig); plot_ind = find(geo_ind == l);
     if ~isempty(plot_ind)
         %navigate to the subplot
-        eval(['subplot(subB',num2str(j),');']);
+        eval(['subplot(subB',num2str(l),');']);
         ax1 = gca;
 
         %plot the buttressing timeseries
@@ -1150,7 +1563,7 @@ for j = 1:length(MP)
                     'edgecolor','none','facealpha',0.5,'linewidth',0.5); hold on;
             end
         end
-        set(ax1,'xlim',[min(years)-1 max(years)],'xticklabel',[],'fontsize',12); grid on;
+        set(ax1,'xlim',[min(years)-1 max(years)],'xticklabel',[],'fontsize',14); grid on;
         ax1.YAxis(1).Color = 'k'; set(ax1,'box','on'); ax1.LineWidth = 1.5;
         %add labels
         if plot_locs(plot_ind) >= rows*cols - (cols-1) || (plot_locs(plot_ind) >= 2 && plot_locs(plot_ind) <= 3)
@@ -1158,6 +1571,7 @@ for j = 1:length(MP)
             if plot_locs(plot_ind) == rows*cols - (cols-1)
                 ax1.YAxis(1).Label.String = 'Buttressing (10^6 N/m)';
                 ax1.YAxis(1).Label.Position = [2008.4 3.5 -1];
+                ax1.YAxis(1).Label.FontSize = 14;
             end
         end
         %crop the y-axis as needed & label bars that extend off the limit
@@ -1165,12 +1579,12 @@ for j = 1:length(MP)
         bM_outlier = find(butt_Meng > 5e6); bA_outlier = find(butt_Amundson > 5e6);
         if ~isempty(bM_outlier)
             if isempty(bA_outlier) %strain-based buttressing data fit in y-axis
-                text(zdate(bM_outlier),5.125,num2str(round(butt_Meng(bM_outlier)/10^6,1)),'fontsize',12,'color',seas_cmap(zseas(bM_outlier),:));
-                text(zdate(bM_outlier)+1,5.625,'x10^6','fontsize',12,'color','k');
+                text(zdate(bM_outlier),5.125,num2str(round(butt_Meng(bM_outlier)/10^6,1)),'fontsize',14,'color',seas_cmap(zseas(bM_outlier),:));
+                text(zdate(bM_outlier)+1,5.625,'x10^6','fontsize',14,'color','k');
             else %both buttressing estimates exceed y-limits and need to be plotted
-                text(zdate(bM_outlier)-1.2,5.625,'(     ,     )x10^6','fontsize',12,'color','k');
-                text(zdate(bM_outlier)-0.9,5.5,num2str(round(butt_Meng(bM_outlier)/10^6,0)),'fontsize',12,'color',seas_cmap(zseas(bM_outlier),:));
-                text(zdate(bA_outlier)+0.1,5.5,num2str(round(butt_Amundson(bA_outlier)/10^6,0)),'fontsize',12,'color',seas_cmap(zseas(bA_outlier),:));
+                text(zdate(bM_outlier)-1.2,5.625,'(     ,     )x10^6','fontsize',14,'color','k');
+                text(zdate(bM_outlier)-0.9,5.5,num2str(round(butt_Meng(bM_outlier)/10^6,0)),'fontsize',14,'color',seas_cmap(zseas(bM_outlier),:));
+                text(zdate(bA_outlier)+0.5,5.5,num2str(round(butt_Amundson(bA_outlier)/10^6,0)),'fontsize',14,'color',seas_cmap(zseas(bA_outlier),:));
             end
         end
         clear b*_outlier ylims;
@@ -1198,16 +1612,17 @@ for j = 1:length(MP)
         set(axr,'xlim',[min(years)-1 max(years)],'xticklabel',[],...
             'ylim',[0,max(term_dists(term_decidates>(min(years)-1)))-min(term_dists(term_decidates>(min(years)-1)))]);
         ylims = get(gca,'ylim'); yticks = get(gca,'ytick');
-        set(gca,'ytick',yticks,'yticklabels',yticks/1000,'fontsize',12);
+        set(gca,'ytick',yticks,'yticklabels',yticks/1000,'fontsize',14);
         grid on; drawnow;
         axr.YAxis(1).Color = 'k'; axr.YAxis(2).Color = 'k';
         if plot_locs(plot_ind) >= rows*cols - (cols-1)
             xticks = get(gca,'xtick'); set(gca,'xticklabel',xticks); clear xticks;
             set(gca,'yticklabel',yticks/1000);
-            xlabel('Year','fontsize',12); 
+            xlabel('Year','fontsize',14); 
             if plot_locs(plot_ind) == rows*cols
-                axr.YAxis(2).Label.String = 'Distance from most-retreated terminus (km)'; axr.YAxis(2).Label.FontSize = 12;
+                axr.YAxis(2).Label.String = 'Distance from most-retreated terminus (km)'; 
                 axr.YAxis(2).Label.Position = [2024.4 15e3 -1];
+                axr.YAxis(2).Label.FontSize = 14;
             end
         end
         pos = get(gca,'position');
@@ -1228,74 +1643,108 @@ for j = 1:length(MP)
     end
     drawnow;
 
-    %create plots of terminus position change relative to buttressing
+    %create plots of biannual terminus position change relative to buttressing
     figure(summaryfig); subdT = subplot(rows,cols,[8,11,14]);
     plot(Bsp(end-length(years)+1:end),dTw(end-length(years)+1:end),symbol_shape,...
-        'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(1,:)); hold on;
-    plot(Bsp(end-length(years)+1:end),dTs(end-length(years)+1:end),symbol_shape,...
-        'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(3,:)); hold on;
+        'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(1,:),'markersize',8); hold on;
+    plot(Bsu(end-length(years)+1:end),dTs(end-length(years)+1:end),symbol_shape,...
+        'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(3,:),'markersize',8); hold on;
 
     clear term*sorted ic;
     clear dts inland_* seaward_idx mean_prof Tdate* term_* Tmos vdist Tyrs zdate* zmos zyrs;
     clear Tdist* zseas Tseas butt_* bp* Havg packing *_profs dVdx dvdist_temp;
-    end
+
 end
 
 %label the center plot
 figure(summaryfig); subplot(subdT);
-set(subdT,'fontsize',12); grid on; box on;
+%replot the ASG data so it is visible
+plot(Bsp(1:length(years)),dTw(1:length(years)),'s',...
+    'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(1,:),'markersize',8); hold on;
+plot(Bsu(1:length(years)),dTs(1:length(years)),'s',...
+    'markeredgecolor','k','linewidth',1,'markerfacecolor',seas_cmap(3,:),'markersize',8); hold on;
+set(subdT,'fontsize',14); grid on; box on;
 xticks = get(gca,'xtick'); yticks = get(gca,'ytick');
 set(gca,'xlim',[0 2.5e6],'xticklabel',xticks/10^6,'yticklabel',yticks/10^3);
-xlabel('Buttressing (10^6 N/m)','fontsize',12); ylabel('Terminus change (km)','fontsize',12); 
-% fit excluding ZIM
-Bsp_alt = Bsp(1:end-length(years)+1); dTw_alt = dTw(1:end-length(years)+1); dTs_alt = dTs(1:end-length(years)+1);
+xlabel('Buttressing (10^6 N/m)','fontsize',14); ylabel('Terminus change (km)','fontsize',14); 
+% fit only to the most-extensive timeseries (ASG and ZIM)
+Bsp_alt = [Bsp(1:length(years)), Bsp(end-length(years)+1:end)]; 
+Bsu_alt = [Bsu(1:length(years)), Bsu(end-length(years)+1:end)]; 
+dTw_alt = [dTw(1:length(years)), dTw(end-length(years)+1:end)]; 
+dTs_alt = [dTs(1:length(years)), dTs(end-length(years)+1:end)];
 [fw_alt,gofw_alt] = fit(Bsp_alt(~isnan(Bsp_alt) & ~isnan(dTw_alt)),dTw_alt(~isnan(Bsp_alt) & ~isnan(dTw_alt)),'poly1'); 
-[fs_alt,gofs_alt] = fit(Bsp_alt(~isnan(Bsp_alt) & ~isnan(dTs_alt)),dTs_alt(~isnan(Bsp_alt) & ~isnan(dTs_alt)),'poly1'); 
-plot(Bsp(end-length(years)+1:end),dTw(end-length(years)+1:end),'xw','markersize',3,'linewidth',1); hold on;
-plot(Bsp(end-length(years)+1:end),dTs(end-length(years)+1:end),'xw','markersize',3,'linewidth',1); hold on;
+[fs_alt,gofs_alt] = fit(Bsu_alt(~isnan(Bsu_alt) & ~isnan(dTs_alt)),dTs_alt(~isnan(Bsu_alt) & ~isnan(dTs_alt)),'poly1'); 
+%add extra symbols to call-out ZIM (ommitted from some fits) and ASG (other detailed record)
+plot(Bsp(1:length(years)),dTw(1:length(years)),'+w','markersize',6,'linewidth',1); hold on;
+plot(Bsu(1:length(years)),dTs(1:length(years)),'+w','markersize',6,'linewidth',1); hold on;
+plot(Bsp(end-length(years)+1:end),dTw(end-length(years)+1:end),'xw','markersize',6,'linewidth',1); hold on;
+plot(Bsu(end-length(years)+1:end),dTs(end-length(years)+1:end),'xw','markersize',6,'linewidth',1); hold on;
 % fit all
 [fw,gofw] = fit(Bsp(~isnan(Bsp) & ~isnan(dTw)),dTw(~isnan(Bsp) & ~isnan(dTw)),'poly1'); 
-[fs,gofs] = fit(Bsp(~isnan(Bsp) & ~isnan(dTs)),dTs(~isnan(Bsp) & ~isnan(dTs)),'poly1'); 
-% plot the fits
-Bx = linspace(min(Bsp),max(Bsp),10);
-plot(Bx,fw(Bx),'-','color',seas_cmap(1,:),'linewidth',2); plot(Bx,fs(Bx),'-','color',seas_cmap(3,:),'linewidth',2); hold on;
-plot(Bx,fw_alt(Bx),'--','color',seas_cmap(1,:),'linewidth',2); plot(Bx,fs_alt(Bx),'--','color',seas_cmap(3,:),'linewidth',2); hold on;
+[fs,gofs] = fit(Bsu(~isnan(Bsu) & ~isnan(dTs)),dTs(~isnan(Bsu) & ~isnan(dTs)),'poly1'); 
+% % plot the fits
+% Bx = linspace(min(Bsp),max(Bsp),10);
+% plot(Bx,fw(Bx),'-','color',seas_cmap(1,:),'linewidth',2); plot(Bx,fs(Bx),'-','color',seas_cmap(3,:),'linewidth',2); hold on;
+% plot(Bx,fw_alt(Bx),'--','color',seas_cmap(1,:),'linewidth',2); plot(Bx,fs_alt(Bx),'--','color',seas_cmap(3,:),'linewidth',2); hold on;
 set(gca,'ytick',[-8*10^3:2*10^3:8*10^3],'yticklabel',[-8:2:8]);
 ylims = get(gca,'ylim'); xlims = get(gca,'xlim');
-% add legend for colors
-rectangle('position',[min(xlims)+0.675*range(xlims), min(ylims)+0.9*range(ylims),0.3*range(xlims),0.075*range(ylims)],'facecolor', ...
-    'w','edgecolor','k','linewidth',1.5);
-plot(min(xlims)+0.725*range(xlims), min(ylims)+0.955*range(ylims),...
-    symbol_shape,'markeredgecolor','k','markerfacecolor',seas_cmap(1,:),'linewidth',1);
-plot(min(xlims)+0.725*range(xlims), min(ylims)+0.925*range(ylims),...
-    symbol_shape,'markeredgecolor','k','markerfacecolor',seas_cmap(3,:),'linewidth',1);
-text(min(xlims)+0.775*range(xlims),min(ylims)+0.955*range(ylims),['winter']);
-text(min(xlims)+0.775*range(xlims),min(ylims)+0.925*range(ylims),['summer']);
-% add legend for fits
-rectangle('position',[min(xlims)+0.25*range(xlims), min(ylims)+0.025*range(ylims),0.725*range(xlims),0.13*range(ylims)],'facecolor', ...
-    'w','edgecolor','k','linewidth',1.5);
-%all data
-plot([min(xlims)+0.25*range(xlims),min(xlims)+0.325*range(xlims)], [min(ylims)+0.12*range(ylims),min(ylims)+0.12*range(ylims)],...
-    '-','color',seas_cmap(1,:),'linewidth',2);
-plot([min(xlims)+0.25*range(xlims),min(xlims)+0.325*range(xlims)], [min(ylims)+0.055*range(ylims),min(ylims)+0.055*range(ylims)],...
-    '-','color',seas_cmap(3,:),'linewidth',2);
-text(min(xlims)+0.35*range(xlims),min(ylims)+0.12*range(ylims),['R^2_{all}=',num2str(round(gofw.rsquare,2))]);
-text(min(xlims)+0.35*range(xlims),min(ylims)+0.055*range(ylims),['R^2_{all}=',num2str(round(gofs.rsquare,2))]);
-%without ZIM
-plot([min(xlims)+0.575*range(xlims),min(xlims)+0.675*range(xlims)], [min(ylims)+0.12*range(ylims),min(ylims)+0.12*range(ylims)],...
-    '--','color',seas_cmap(1,:),'linewidth',2);
-plot([min(xlims)+0.575*range(xlims),min(xlims)+0.675*range(xlims)], [min(ylims)+0.055*range(ylims),min(ylims)+0.055*range(ylims)],...
-    '--','color',seas_cmap(3,:),'linewidth',2);
-text(min(xlims)+0.70*range(xlims),min(ylims)+0.12*range(ylims),['R^2_{noZIM}=',num2str(round(gofw_alt.rsquare,2))]);
-text(min(xlims)+0.70*range(xlims),min(ylims)+0.055*range(ylims),['R^2_{noZIM}=',num2str(round(gofs_alt.rsquare,2))]);
-disp(['Winter advance = ',num2str(fw.p1*10^6/1000), 'km for each 10^6 N/m increase in buttressing']);
-disp(['Winter fit RMSE = ',num2str(gofw.rmse/1000), ' km and R^2 = ',num2str(gofw.rsquare)]);
-disp(['Summer retreat = ',num2str(fs.p1*10^6/1000), 'km for each 10^6 N/m increase in buttressing']);
-disp(['Summer fit RMSE = ',num2str(gofs.rmse/1000), ' km and R^2 = ',num2str(gofs.rsquare)]);
 %adjust subplot position
 subplot(subB11); pos = get(gca,'position');
 subplot(subdT); subpos = get(gca,'position'); set(gca,'linewidth',1.5);
 set(subdT,'position',[pos(1) subpos(2)-0.06 pos(3) subpos(4)+0.12]);
+% add legend
+rectangle('position',[min(xlims)+0.2*range(xlims), min(ylims)+0.875*range(ylims),0.775*range(xlims),0.1*range(ylims)],'facecolor', ...
+    'w','edgecolor','k','linewidth',1.5);
+%symbols: big3 vs others
+plot(min(xlims)+0.23*range(xlims), min(ylims)+0.945*range(ylims),...
+    'd','markeredgecolor','k','markerfacecolor','w','linewidth',1,'markersize',8);
+plot(min(xlims)+0.23*range(xlims), min(ylims)+0.905*range(ylims),...
+    's','markeredgecolor','k','markerfacecolor','w','linewidth',1,'markersize',8);
+text(min(xlims)+0.265*range(xlims),min(ylims)+0.95*range(ylims),['D>15 Gt yr^{-1}'],'fontsize',14);
+text(min(xlims)+0.265*range(xlims),min(ylims)+0.91*range(ylims),['D<15 Gt yr^{-1}'],'fontsize',14);
+%colors: winter vs summer
+rectangle('position',[min(xlims)+0.65*range(xlims), min(ylims)+0.935*range(ylims),0.04*range(xlims),0.02*range(ylims)],'facecolor', ...
+    seas_cmap(1,:),'edgecolor','none','linewidth',1);
+rectangle('position',[min(xlims)+0.65*range(xlims), min(ylims)+0.895*range(ylims),0.04*range(xlims),0.02*range(ylims)],'facecolor', ...
+    seas_cmap(3,:),'edgecolor','none','linewidth',1);
+% plot(min(xlims)+0.725*range(xlims), min(ylims)+0.955*range(ylims),...
+%     symbol_shape,'markeredgecolor','k','markerfacecolor',seas_cmap(1,:),'linewidth',1);
+% plot(min(xlims)+0.725*range(xlims), min(ylims)+0.925*range(ylims),...
+%     symbol_shape,'markeredgecolor','k','markerfacecolor',seas_cmap(3,:),'linewidth',1);
+text(min(xlims)+0.71*range(xlims),min(ylims)+0.95*range(ylims),['winter'],'fontsize',14);
+text(min(xlims)+0.71*range(xlims),min(ylims)+0.91*range(ylims),['summer'],'fontsize',14);
+%ASG & ZIM
+rectangle('position',[min(xlims)+0.38*range(xlims), min(ylims)+0.015*range(ylims),0.60*range(xlims),0.09*range(ylims)],'facecolor', ...
+    'w','edgecolor','k','linewidth',1.5);
+plot(min(xlims)+0.415*range(xlims), min(ylims)+0.08*range(ylims),...
+    's','markeredgecolor','k','markerfacecolor',[0.5 0.5 0.5],'linewidth',1,'markersize',8);
+plot(min(xlims)+0.415*range(xlims), min(ylims)+0.08*range(ylims),'+w','markersize',6,'linewidth',1);
+plot(min(xlims)+0.415*range(xlims), min(ylims)+0.04*range(ylims),...
+    'd','markeredgecolor','k','markerfacecolor',[0.5 0.5 0.5],'linewidth',1,'markersize',8);
+plot(min(xlims)+0.415*range(xlims), min(ylims)+0.04*range(ylims),'xw','markersize',6,'linewidth',1);
+text(min(xlims)+0.46*range(xlims),min(ylims)+0.08*range(ylims),['Nunatakassaap'],'fontsize',14);
+text(min(xlims)+0.46*range(xlims),min(ylims)+0.04*range(ylims),['Zachari',char(230),' Isstr',char(248),'m'],'fontsize',14);
+% % add legend for fits
+% rectangle('position',[min(xlims)+0.2*range(xlims), min(ylims)+0.025*range(ylims),0.775*range(xlims),0.13*range(ylims)],'facecolor', ...
+%     'w','edgecolor','k','linewidth',1.5);
+% %all data
+% plot([min(xlims)+0.225*range(xlims),min(xlims)+0.3*range(xlims)], [min(ylims)+0.12*range(ylims),min(ylims)+0.12*range(ylims)],...
+%     '-','color',seas_cmap(1,:),'linewidth',2);
+% plot([min(xlims)+0.225*range(xlims),min(xlims)+0.3*range(xlims)], [min(ylims)+0.055*range(ylims),min(ylims)+0.055*range(ylims)],...
+%     '-','color',seas_cmap(3,:),'linewidth',2);
+% text(min(xlims)+0.325*range(xlims),min(ylims)+0.12*range(ylims),['R^2_{all}=',num2str(round(gofw.rsquare,2))]);
+% text(min(xlims)+0.325*range(xlims),min(ylims)+0.055*range(ylims),['R^2_{all}=',num2str(round(gofs.rsquare,2))]);
+% %ASG & ZIM only
+% plot([min(xlims)+0.575*range(xlims),min(xlims)+0.675*range(xlims)], [min(ylims)+0.12*range(ylims),min(ylims)+0.12*range(ylims)],...
+%     '--','color',seas_cmap(1,:),'linewidth',2);
+% plot([min(xlims)+0.575*range(xlims),min(xlims)+0.675*range(xlims)], [min(ylims)+0.055*range(ylims),min(ylims)+0.055*range(ylims)],...
+%     '--','color',seas_cmap(3,:),'linewidth',2);
+% text(min(xlims)+0.70*range(xlims),min(ylims)+0.12*range(ylims),['R^2_{decadal}=',num2str(round(gofw_alt.rsquare,2))]);
+% text(min(xlims)+0.70*range(xlims),min(ylims)+0.055*range(ylims),['R^2_{decadal}=',num2str(round(gofs_alt.rsquare,2))]);
+disp(['Winter advance = ',num2str(fw.p1*10^6/1000), 'km for each 10^6 N/m increase in buttressing']);
+disp(['Winter fit RMSE = ',num2str(gofw.rmse/1000), ' km and R^2 = ',num2str(gofw.rsquare)]);
+disp(['Summer retreat = ',num2str(fs.p1*10^6/1000), 'km for each 10^6 N/m increase in buttressing']);
+disp(['Summer fit RMSE = ',num2str(gofs.rmse/1000), ' km and R^2 = ',num2str(gofs.rsquare)]);
 
 %save the GrIS-wide timeseries
 saveas(summaryfig,[root_dir,'GrIS-melange_terminus-buttressing_',num2str(zcutoff),'m-zcutoff_timeseries.png'],'png');
@@ -1307,13 +1756,184 @@ subplot(sub1); set(sub1,'fontsize',16);
 xlabel('Thickness (m)','fontsize',16); ylabel('Buttressing (N/m)','fontsize',16); 
 subplot(sub2); set(sub2,'fontsize',16);
 xlabel('Buttressing (N/m)','fontsize',16); ylabel('Terminus change rate (m/d)','fontsize',16); 
+% close(termfig);
 
-close all;
+
+% create violin plots to show seasonal profile distributions
+prof_fig = figure; set(prof_fig,'position',[350 50 900 1200]);
+Hdist_cat = categorical(Hprofs_dist'); max_dist = 12000;
+% convert thickness data to vectors for plotting
+dist_groups = []; H_vals = []; season_groups = []; dataflag = [];
+for k = 2:4
+    %isolate the data for the season
+    ygroupdata = profs(k).H';
+    for l = 1:size(ygroupdata,1)
+        obsno(l) = sum(~isnan(ygroupdata(l,:)));
+    end
+    % endref = find(obsno>1,1,'last');
+    endref = find(Hprofs_dist<=max_dist,1,'last');
+    if ~isempty(endref)
+        dataflag = [dataflag; k];
+        ygroupdata = ygroupdata(1:endref,:);
+        xgroupdata = categorical(repmat(Hprofs_dist(1:endref)'/1000,1,size(ygroupdata,2)));
+        
+        %convert to column vectors
+        xgroupcolumn = xgroupdata(~isnan(ygroupdata)); ycolumn = ygroupdata(~isnan(ygroupdata));
+        cgroupdata = categorical(repelem(season_names(k),length(xgroupcolumn)));
+        
+        %concatenate
+        dist_groups = [dist_groups; xgroupcolumn];
+        H_vals = [H_vals; ycolumn];
+        season_groups = [season_groups; cgroupdata'];
+    end
+
+    %plot a bar plot of the observation count profile
+    subplot(3,3,k-1);
+    bp = bar(Hprofs_dist(1:endref)'/1000,obsno(1:endref));
+    set(gca,'ylim',[0,150],'xlim',[-1,max_dist/1000+1],'xticklabel',[],'fontsize',16); 
+    if k == 2; ylabel('Count','fontsize',16); else; set(gca,'yticklabel',[]); end
+    bp.FaceColor = seas_cmap(k,:); bp.FaceAlpha = 0.5; clear bp;
+    pos = get(gca,'position'); set(gca,'position',[pos(1)-(4-k)*0.03 0.86 1.35*pos(3) 0.1]);
+    ylims = get(gca,'ylim'); text(max_dist/1000,0.8*max(ylims),[alphabet(k-1),') '],'fontsize',16);
+
+    %plot individual season data in its own panel
+    subplot(3,3,3+k-1);
+    vp = violinplot(xgroupcolumn,ycolumn); hold on;
+    vp.FaceColor = seas_cmap(k,:); vp.FaceAlpha = 0.5; clear vp;
+    plot(categorical(Hprofs_dist(1:endref)'/1000),nanmedian(ygroupdata,2),'*k');
+    set(gca,'ylim',[0,150],'fontsize',16,'xticklabel',[]); box on; ylims = get(gca,'ylim');
+    pos = get(gca,'position'); set(gca,'position',[pos(1)-(4-k)*0.03 0.48 1.35*pos(3) 0.35]);
+    if k == 2
+        ylabel('Mean thickness (m)','fontsize',16); 
+    else
+        set(gca,'yticklabel',[]);
+    end
+    text(max_dist/1000+1,0.95*max(ylims),[alphabet(3+k-1),') '],'fontsize',16);
+    % %add number of observations
+    % for l = 1:endref
+    %     if obsno(l) > 100
+    %         text(l,0.92*max(ylims),['(',num2str(obsno(l)),')'],'fontsize',12,'Rotation',90);
+    %     else
+    %         text(l,0.92*max(ylims),['(',num2str(obsno(l)),')'],'fontsize',12,'Rotation',90);
+    %     end
+    % end
+
+    clear ygroupdata xgroup* ycolumn cgroupdata; clear obsno;
+end
+% plot all the data in a single panel
+% vp = violinplot(dist_groups,H_vals,GroupByColor=season_groups);
+% for k = 1:length(vp)
+%     vp(k).FaceColor = seas_cmap(dataflag(k),:);
+% end
+% set(gca,'ylim',[0,150],'fontsize',16); box on;
+
+% convert packing density data to vectors for plotting
+dist_groups = []; p_vals = []; season_groups = []; dataflag = [];
+for k = 2:4
+    %isolate the data for the season
+    ygroupdata = 100*profs(k).p';
+    for l = 1:size(ygroupdata,1)
+        obsno(l) = sum(~isnan(ygroupdata(l,:)));
+    end
+    % endref = find(obsno>1,1,'last');
+    endref = find(Hprofs_dist<=max_dist,1,'last');
+    if ~isempty(endref)
+        dataflag = [dataflag; k];
+        ygroupdata = ygroupdata(1:endref,:);
+        xgroupdata = categorical(repmat(Hprofs_dist(1:endref)'/1000,1,size(ygroupdata,2)));
+        
+        %convert to column vectors
+        xgroupcolumn = xgroupdata(~isnan(ygroupdata)); ycolumn = ygroupdata(~isnan(ygroupdata));
+        cgroupdata = categorical(repelem(season_names(k),length(xgroupcolumn)));
+
+        %concatenate
+        dist_groups = [dist_groups; xgroupcolumn];
+        p_vals = [p_vals; ycolumn];
+        season_groups = [season_groups; cgroupdata'];
+    end
+    clear obsno;
+
+    %plot individual season data in its own panel
+    subplot(3,3,6+k-1);
+    vp = violinplot(xgroupcolumn,ycolumn); hold on;
+    vp.FaceColor = seas_cmap(k,:); vp.FaceAlpha = 0.5; clear vp;
+    plot(categorical(Hprofs_dist(1:endref)'/1000),nanmedian(ygroupdata,2),'*k');
+    set(gca,'ylim',[0,100],'fontsize',16); box on; ylims = get(gca,'ylim');
+    pos = get(gca,'position'); set(gca,'position',[pos(1)-(4-k)*0.03 0.10 1.35*pos(3) 0.35]);
+    xlabel('Distance from terminus (km)','fontsize',16);
+    if k == 2
+        ylabel('Packing density (%)','fontsize',16);
+    else
+        set(gca,'yticklabel',[]);
+    end
+    text(max_dist/1000+1,0.95*max(ylims),[alphabet(6+k-1),') '],'fontsize',16);
+
+    clear ygroupdata xgroup* ycolumn cgroupdata;
+end
+
+% % convert strain rate data to vectors for plotting
+% dist_groups = []; V_vals = []; season_groups = []; dataflag = [];
+% for k = 2:4
+%     %isolate the data for the season
+%     ygroupdata = profs(k).V';
+% 
+%     %truncate the along-fjord plot extent
+%     for l = 1:size(ygroupdata,1)
+%         obsno(l) = sum(~isnan(ygroupdata(l,:)));
+%     end
+%     % endref = find(obsno>1,1,'last');
+%     endref = find(Hprofs_dist<=max_dist,1,'last');
+% 
+%     %identify the range of values & fit kernel density functions within
+%     % %that range to the data at that location
+%     % for l = 1:size(ygroupdata,1)
+%     %     pts = linspace(min(ygroupdata(l,:),[],'omitmissing'), max(ygroupdata(l,:),[],'omitmissing'), size(ygroupdata,2));
+%     %     [densVals, evalPts] = ksdensity(ygroupdata(l,:), pts);
+%     % end
+% 
+%     if ~isempty(endref)
+%         dataflag = [dataflag; k];
+%         ygroupdata = ygroupdata(1:endref,:);
+%         xgroupdata = categorical(repmat(Hprofs_dist(1:endref)'/1000,1,size(ygroupdata,2)));
+% 
+%         %convert to column vectors
+%         xgroupcolumn = xgroupdata(~isnan(ygroupdata)); ycolumn = ygroupdata(~isnan(ygroupdata));
+%         cgroupdata = categorical(repelem(season_names(k),length(xgroupcolumn)));
+% 
+%         %concatenate
+%         dist_groups = [dist_groups; xgroupcolumn];
+%         V_vals = [V_vals; ycolumn];
+%         season_groups = [season_groups; cgroupdata'];
+%     end
+%     clear obsno;
+% 
+%     %plot individual season data in its own panel
+%     subplot(3,3,6+k-1);
+%     vp = violinplot(xgroupcolumn,ycolumn);
+%     vp.FaceColor = seas_cmap(k,:); vp.FaceAlpha = 0.5; clear vp;
+%     set(gca,'ylim',[0,2e4],'fontsize',16); box on;
+%     pos = get(gca,'position'); set(gca,'position',[pos(1)-(4-k)*0.03 pos(2)-0.05 1.35*pos(3) 1.2*pos(4)]);
+% 
+%     clear ygroupdata xgroup* ycolumn cgroupdata;
+% end
+
+%save the violin plot profiles
+saveas(prof_fig,[root_dir,'GrIS-melange_',num2str(zcutoff),'m-zcutoff_violin-profiles.png'],'png');
+exportgraphics(prof_fig,[root_dir,'GrIS-melange_',num2str(zcutoff),'m-zcutoff_violin-profiles.tif'],Resolution=600);
+
+
+% close all;
+
+
 
 %% create terminus position plots
 load([root_dir,'GrIS-melange-characteristics_',num2str(zcutoff),'m-zcutoff.mat']);
 
-for j = 1:length(MP)
+for l = 1:length(sitenames)
+    %identify the index in the structure for the specified sitename
+    j = find(strcmp(string(saved_sites),sitenames(l,:)));
+
+    %specify site plotting conventions
     site_abbrev = MP(j).name; disp(site_abbrev);
     close all; drawnow;
     ts_fig = figure; set(ts_fig,'position',[50 50 600 1200]);
@@ -1329,7 +1949,7 @@ for j = 1:length(MP)
     end
 
     %load the centerline & create a distance vector
-    C = shaperead([root_dir,sitenames(j,:),'/shapefiles/',sitenames(j,:),'-centerline.shp']);
+    C = shaperead([root_dir,site_abbrev,'/shapefiles/',site_abbrev,'-centerline.shp']);
     % centerline_dist = [0, cumsum(sqrt((C.X(2:end)-C.X(1:end-1)).^2 + (C.Y(2:end)-C.Y(1:end-1)).^2))]';
     % for l = 1:length(MP(j).V.X)
     %     dists = sqrt((MP(j).V.X(l)-C.X).^2 + (MP(j).V.Y(l)-C.Y).^2);
@@ -1525,7 +2145,7 @@ for j = 1:length(geo_ind)
                 plot([1:12]+0.5,tanoms,'s',...
                     'color',term_cmap(j,:),'linewidth',1,'markerfacecolor',term_cmap(j,:)); hold on;
         end
-        % site_ind(pl_ref) = strmatch(sitenames(j,:),geo_order);  
+        % site_ind(pl_ref) = strmatch(site_abbrev,geo_order);  
         site_ind(pl_ref) = geo_ind(j);  pl_ref = pl_ref+1; clear tanoms;
     end
 end
@@ -1584,16 +2204,22 @@ else
 end
 
 %iterate
-for j = 1:length(MP)
+for l = 1:length(sitenames)
     close all; drawnow;
-    disp(sitenames(j,:)); output_dir = [root_dir,sitenames(j,:),'/']; site_abbrev = MP(j).name;
+
+    %identify the index in the structure for the specified sitename
+    j = find(strcmp(string(saved_sites),sitenames(l,:)));
+
+    %specify site plotting conventions
+    site_abbrev = MP(j).name; disp(site_abbrev);
+    output_dir = [root_dir,site_abbrev,'/'];
     
     %load the melange masks
-    cd([root_dir,sitenames(j,:)]);
-    load([MP(j).name,'-melange-masks.mat']); %load the melange mask file
+    cd([root_dir,site_abbrev]);
+    load([site_abbrev,'-melange-masks.mat']); %load the melange mask file
 
     %load the reference image
-    ims = dir([root_dir,sitenames(j,:),'/images/',sitenames(j,:),'*S2*.tif']); 
+    ims = dir([root_dir,site_abbrev,'/images/',site_abbrev,'*S2*.tif']); 
     ref_image = [ims(1).folder,'/',ims(1).name];
     clear ims;
     %load the image geotiff
@@ -1646,10 +2272,10 @@ for j = 1:length(MP)
         termfile_names = {[site_abbrev,'_termpicks.shp'],[site_abbrev,'-termini-EPSG3413_2019-2023.shp']}; %specify consistent data sources
     end
     T_inds = []; YYYYMMDD = []; Tseas = []; Tyrs = []; Tmos = []; TX = []; TY = [];
-    for l = 1:length(termfile_names)
+    for m = 1:length(termfile_names)
         % load the shapefile
         % if ismember(termfiles(l).name,termfile_names)
-        term = shaperead(char(termfile_names(l))); proj_check = 0;
+        term = shaperead(char(termfile_names(m))); proj_check = 0;
         for k = 1:length(term)
             term_date(k) = datenum(term(k).Date,'yyyy-mm-dd');
             [xis,~] = polyxpoly(term(k).X,term(k).Y,MP(j).V.X,MP(j).V.Y);
@@ -1701,7 +2327,7 @@ for j = 1:length(MP)
         YYYYMMDD(bad_ind) = [];
 
         %concatenate data from different datasets
-        if l == 1
+        if m == 1
             cat_ref = 0;
         else
             cat_ref = length(T);
@@ -1724,10 +2350,10 @@ for j = 1:length(MP)
 
     %identify the centerline points from which data were extracted and
     %create a colormap for the bins
-    Dsubs = dir([root_dir,MP(j).name,'/',MP(j).name,'*-iceberg-distribution-subsets.csv']);
+    Dsubs = dir([root_dir,site_abbrev,'/',site_abbrev,'*-iceberg-distribution-subsets.csv']);
     size_classes = [];
     for p = 1:length(Dsubs)
-        D = readtable([root_dir,MP(j).name,'/',Dsubs(p).name],"VariableNamingRule","preserve");
+        D = readtable([root_dir,site_abbrev,'/',Dsubs(p).name],"VariableNamingRule","preserve");
         name_split = split(Dsubs(p).name,'-',2);
         berg_dates(p) = datetime(name_split{2},'Inputformat','yyyyMMdd'); clear name_split;
 
@@ -1812,7 +2438,7 @@ for j = 1:length(MP)
     colormap(ax1,'gray');
     linkaxes([ax1 ax2]);
     plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
-    
+    set(gca,'box','on','linewidth',1.5);
 
     %melange extent plotting
     for k = min(seaward_ext):max(inland_ext)+2
@@ -1892,32 +2518,32 @@ for j = 1:length(MP)
         set(ax1,'position',[pos(1) pos(2) pos(3) pos(4)]); drawnow;
         set(ax2,'position',[pos(1) pos(2) pos(3) pos(4)]); drawnow;
     end
-    saveas(map_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-',suffix,'.png'],'png'); %save the image
-    exportgraphics(map_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-',suffix,'.tif'],Resolution=600);
+    saveas(map_fig,[root_dir,site_abbrev,'/',site_abbrev,'-',suffix,'.png'],'png'); %save the image
+    exportgraphics(map_fig,[root_dir,site_abbrev,'/',site_abbrev,'-',suffix,'.tif'],Resolution=600);
     close(map_fig);
     % uiwait %advance only after figure is closed
 
     %for Alison Glacier for 20110610, create a two subpanel figure to
     %demonstrate how packing density and the bergy bit misfit are
     %calculated with the map on the top & the size distribution on the bottom
-    if contains(MP(j).name,'ASG')
-        ex_fig = figure; set(ex_fig,'position',[950 50 450 1000]);
+    if contains(site_abbrev,'ASG')
+        ex_fig = figure; set(ex_fig,'position',[50 50 900 1200]);
 
         %reproduce the site overview map
-        subo = subplot(3,1,1);
+        subo = subplot(3,1,1); 
         %plot the image
         imagesc(subo,im.x(min(xinds):max(xinds)),im.y(min(yinds):max(yinds)),im_subset); axis xy equal;
         colormap(subo,'gray'); drawnow; hold on;
-        set(subo,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
-        subo_pos = get(gca,'position');
+        set(subo,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all') max(mask_yrange,[],'all')-1000]);
+        subo_pos = get(gca,'position'); set(subo,'position',[subo_pos(1) subo_pos(2)-0.1 subo_pos(3) subo_pos(4)]);
         %add the average thickness
         ax2 = axes;
         implot = imagesc(ax2,imx,imy,melange_z,'AlphaData', meltrans); axis xy equal; hold on;
         colormap(ax2,z_cmap); set(ax2,'color','none','visible','off'); set(gca,'clim',[0 200]);
         cbar = colorbar; cbar.YLabel.String = 'Average thickness (m)';
-        cbar.FontSize = 12; cbar.Location = "eastoutside";
+        cbar.FontSize = 16; cbar.Location = "eastoutside";
         colormap(subo,'gray');
-        linkaxes([subo ax2]);
+        linkaxes([subo ax2]); set(gca,'box','on','linewidth',1.5);
         plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
         %melange extent plotting
         for k = min(seaward_ext):max(inland_ext)+2
@@ -1930,15 +2556,15 @@ for j = 1:length(MP)
         else
             plot(ax2,MP(j).V.X(min(seaward_ext):end),MP(j).V.Y(min(seaward_ext):end),'sk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
         end
-        set(ax2,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all')-500 max(mask_yrange,[],'all')+500]);
+        set(ax2,'xlim',[min(mask_xrange,[],'all')-500 max(mask_xrange,[],'all')+500],'ylim',[min(mask_yrange,[],'all') max(mask_yrange,[],'all')-1000]);
         xlims = get(gca,'xlim'); ylims = get(gca,'ylim');
         xticks = get(subo,'xtick'); yticks = get(subo,'ytick');
-        set(subo,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',12);
-        xlabel(subo,'Easting (km)','fontsize',12); ylabel(subo,'Northing (km)','fontsize',12);
+        set(subo,'xticklabels',[],'fontsize',16); %xlabel(subo,'Easting (km)','fontsize',16); 
+        set(subo,'yticklabels',yticks/1000,'fontsize',16); ylabel(subo,'Northing (km)','fontsize',16); 
         if range(xlims) > 1.05*range(ylims) %short and fat map so plot the legend below
-            cbar.Location = "northoutside"; cbar.Orientation = 'horizontal';
-            set(subo,'position',[subo_pos(1)+x_shift subo_pos(2) 0.9*subo_pos(3) 0.9*subo_pos(4)]); drawnow;
-            set(ax2,'position',[subo_pos(1)+x_shift subo_pos(2) 0.9*subo_pos(3) 0.9*subo_pos(4)]); drawnow;
+            cbar.Location = "eastoutside"; cbar.Orientation = 'vertical';
+            set(subo,'position',[0 0.7 1 (subo_pos(4)/subo_pos(3))]); drawnow;
+            set(ax2,'position',[0 0.7 1 (subo_pos(4)/subo_pos(3))]); drawnow;
         else %tall and thin map so plot the legend on the side
             set(subo,'position',[subo_pos(1) subo_pos(2) subo_pos(3) subo_pos(4)]); drawnow;
             set(ax2,'position',[subo_pos(1) subo_pos(2) subo_pos(3) subo_pos(4)]); drawnow;
@@ -1970,21 +2596,22 @@ for j = 1:length(MP)
         % colormap(subm,berg_cmap); drawnow; hold on;
         colormap(subm,z_cmap); set(subm,'clim',[0 200]); drawnow; hold on;
         % set(subm,'xlim',[-332500 -320500],'ylim',[-1646500 -1638500]);
-        berg_cbar = colorbar; %berg_cbar.Ticks = [0:50:200]; 
-        berg_cbar.Label.String = 'Thickness (m)';
-        berg_cbar.FontSize = 12; berg_cbar.Location = 'northoutside';
+        % berg_cbar = colorbar; %berg_cbar.Ticks = [0:50:200]; 
+        % berg_cbar.Label.String = 'Thickness (m)';
+        % berg_cbar.FontSize = 16; berg_cbar.Location = 'northoutside';
         %format the map
         % xticks = get(subm,'xtick'); yticks = get(subm,'ytick');
-        % set(subm,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',12);
-        % xlabel(subm,'Easting (km)','fontsize',12); ylabel(subm,'Northing (km)','fontsize',12);
-        set(subm,'xlim',xlims,'ylim',ylims);
+        % set(subm,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',14);
+        % xlabel(subm,'Easting (km)','fontsize',14); ylabel(subm,'Northing (km)','fontsize',14);
+        set(subm,'xlim',xlims,'ylim',ylims); set(gca,'box','on','linewidth',1.5);
         xticks = get(subm,'xtick'); yticks = get(subm,'ytick');
-        set(subm,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',12);
-        xlabel(subm,'Easting (km)','fontsize',12); ylabel(subm,'Northing (km)','fontsize',12);
-
+        set(subm,'xticklabels',xticks/1000,'yticklabels',yticks/1000,'fontsize',16);
+        xlabel(subm,'Easting (km)','fontsize',16); ylabel(subm,'Northing (km)','fontsize',16);
+        subm_pos = get(subm,'position');
+        set(subm,'position',[0 0.4 1 (subo_pos(4)/subo_pos(3))]);
 
         %load the size distribution for near the terminus for the date
-        D = readtable([root_dir,MP(j).name,'/',MP(j).name,'-20110610-iceberg-distribution-subsets.csv'],"VariableNamingRule","preserve");
+        D = readtable([root_dir,site_abbrev,'/',site_abbrev,'-20110610-iceberg-distribution-subsets.csv'],"VariableNamingRule","preserve");
         v1 = table2array(D(:,1)); dv1 = table2array(D(:,2));
         berg_nos = table2array(D(:,3:end)); berg_nos(berg_nos==0) = NaN;
         size_classes = sum(~isnan(berg_nos),1);
@@ -2014,14 +2641,14 @@ for j = 1:length(MP)
         set(axb,'xlim',xlims,'ylim',ylims);
         % colormap(subm,berg_cmap);
         colormap(subm,z_cmap);
-        map_pos = get(subm,'position'); set(subm,'position',[subo_pos(1) map_pos(2) subo_pos(3) subo_pos(4)]);
+        map_pos = get(subm,'position'); set(subm,'position',[0 0.4 1 (subo_pos(4)/subo_pos(3))]);
         map_pos = get(subm,'position'); set(axb,'position',map_pos);
         clear packmask maskedz M;
         % %add the centerline
         % plot(axb,MP(j).V.X(min(seaward_ext):max(inland_ext)+1),MP(j).V.Y(min(seaward_ext):max(inland_ext)+1),'-k','markersize',6,'linewidth',2); hold on;
         % plot(axb,MP(j).V.X(min(seaward_ext):max(inland_ext)+1),MP(j).V.Y(min(seaward_ext):max(inland_ext)+1),'sk','markersize',6,'linewidth',1,'markerfacecolor','k'); hold on;
         %load the transects
-        S = shaperead([root_dir,MP(j).name,'/shapefiles/',MP(j).name,'-transects_1000m.shp']);
+        S = shaperead([root_dir,site_abbrev,'/shapefiles/',site_abbrev,'-transects_1000m.shp']);
         clear *_ext;
 
         %plot the transect bounds for the subset
@@ -2040,6 +2667,9 @@ for j = 1:length(MP)
         plot(melmask.uncropped.x,melmask.uncropped.y,'-k','linewidth',2);
         clear S *_idx;
 
+        %shift the colorbar so it aligns with both maps
+        cbar_pos = cbar.Position; cbar.Position = [cbar_pos(1)+0.02 0.5 cbar_pos(3) cbar_pos(4)+0.1];
+
         %plot the data
         figure(ex_fig);
         subp = subplot(3,1,3);
@@ -2048,19 +2678,20 @@ for j = 1:length(MP)
         plot(subp,log10(v1),log10(n1),'s','LineWidth',1,'Color',seas_cmap(2,:),'markersize',5,'markerfacecolor',seas_cmap(2,:)); hold on;
         plot(subp,log10(v1),log10(n1_mod),'--','LineWidth',2,'Color',seas_cmap(2,:)); hold on;
         %format the plot
-        subp.FontSize = 12;
+        subp.FontSize = 16;
         subp.YLim = [-5 2]; subp.YTick = [-4:2:2]; %axl.YLim = [10^-10 10^3];
         subp.XLim = [1.5 5]; subp.XTick = [2, 3, 4, 5];
         subp.XTickLabel = compose('%.0e',[10^2, 10^3, 10^4, 10^5]);
         subp.YTickLabel = compose('%.0e', [10^-4, 10^-2, 0, 10^2]);
-        xlabel('Surface area (m^2)','fontsize',12);
-        ylabel('Normalized iceberg count','fontsize',12);
+        set(gca,'box','on','linewidth',1.5);
+        xlabel('Surface area (m^2)','fontsize',16);
+        ylabel('Normalized iceberg count','fontsize',16);
         plot_pos = get(gca,'position');
-        set(subp,'position',[subo_pos(1) 0.11 subo_pos(3) subo_pos(4)]);
+        set(subp,'position',[0.165 0.10 0.67 0.2]);
 
         %save the figure
-        saveas(ex_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-bergy-bit_example-subplots.png'],'png'); %save the image
-        exportgraphics(ex_fig,[root_dir,sitenames(j,:),'/',sitenames(j,:),'-bergy-bit_example-subplots.tif'],Resolution=600);
+        saveas(ex_fig,[root_dir,site_abbrev,'/',site_abbrev,'-bergy-bit_example-subplots.png'],'png'); %save the image
+        exportgraphics(ex_fig,[root_dir,site_abbrev,'/',site_abbrev,'-bergy-bit_example-subplots.tif'],Resolution=600);
         close(ex_fig);
         clear inland_idx v n dv n1 v1 dv1;
     end
@@ -2218,7 +2849,7 @@ suffix = 'plzoom_loglog'; %'plzoom_loglog' to focus on iceberg areas <10^5m^2, '
 % normalize_exp = 1.5; % Increase to weight residuals towards end of the curve, minimum = 1
 
 %create a seasonal profile figure with a top row containing profiles near the terminus and a bottom row containing seaward profiles
-subdist_fig = figure; set(subdist_fig,'position',[50 50 1200 1200]);
+subdist_fig = figure; set(subdist_fig,'position',[50 50 1200 800]);
 %subplots for inland sample location
 subia = subplot(2,3,1); subib = subplot(2,3,2); subic = subplot(2,3,3); 
 %subplots for seaward sample location
@@ -2372,7 +3003,7 @@ log_v = log10(v1);
 
 %apply the EBC fitc function to the average of all seasonal profiles in each
 %location & plot the result as a dashed line
-sample_locs = {'near-terminus','seaward'};
+sample_locs = {'terminus','seaward'};
 for l = 1:2
     if l == 1
         disp('plotting profiles for near-terminus sample location')
@@ -2382,6 +3013,12 @@ for l = 1:2
 
     %2 = spring, 3 = summer, 4 = fall
     for k = 2:4
+        if k <= 2
+            fill_alpha = 0.2;
+        else
+            fill_alpha = 0.4;
+        end
+
         if l == 1
             n1 = nanmedian(n1_inlandseas(:,:,k),2);
         else
@@ -2411,16 +3048,16 @@ for l = 1:2
                 else
                     subplot(subic); log_n = log10(n1fa);
                 end
-                yyaxis left; axl = gca; pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.05*pos(3) pos(4)]);
+                yyaxis left; axl = gca; pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2)-0.03 1.075*pos(3) 1.05*pos(4)]);
 
                 %plot dummy fill polygons for the legend
                 if l == 1 && k == 2
                     pf(1) = fill(gca,[10,50,50,10,10],[0.9e2,0.9e2,1.1e2,1.1e2,0.9e2],...
-                        seas_cmap(2,:),'FaceAlpha',fill_alpha,'EdgeColor','none'); hold on;
+                        seas_cmap(2,:),'FaceAlpha',0.2,'EdgeColor','none'); hold on;
                     pf(2) = fill(gca,[10,50,50,10,10],[0.9e2,0.9e2,1.1e2,1.1e2,0.9e2],...
-                        seas_cmap(3,:),'FaceAlpha',fill_alpha,'EdgeColor','none'); hold on;
+                        seas_cmap(3,:),'FaceAlpha',0.4,'EdgeColor','none'); hold on;
                     pf(3) = fill(gca,[10,50,50,10,10],[0.9e2,0.9e2,1.1e2,1.1e2,0.9e2],...
-                        seas_cmap(4,:),'FaceAlpha',fill_alpha,'EdgeColor','none'); hold on;
+                        seas_cmap(4,:),'FaceAlpha',0.4,'EdgeColor','none'); hold on;
                 end
 
                 %plot the data
@@ -2442,7 +3079,7 @@ for l = 1:2
                     else
                         axl.YTickLabel = [];
                     end
-                    text(3.5,2.3,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',16);
+                    text(3.5,2.3,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',18);
                 else
                     axl.YLim = [-8 3]; axl.YTick = [-8:2:2]; %axl.YLim = [10^-10 10^3];
                     axl.XLim = [1.5 6.5]; axl.XTick = [2, 4, 6];
@@ -2452,14 +3089,14 @@ for l = 1:2
                     else
                         axl.YTickLabel = [];
                     end
-                    text(4.2,2.2,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',16);
+                    text(4.2,2.2,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',18);
                 end
-                axl.FontSize(1) = 16; %grid on;
+                axl.FontSize(1) = 18; %grid on;
                 %axl.XLim = [10^1 10^7]; axl.XTick = [10^2, 10^4, 10^6];
-                % set(gca,'ylim',[10^-10 10^3],'xlim',[10^1 10^7],'xtick',[10^2, 10^4, 10^6],'fontsize',16); grid on;
-                % text(10^5,10^2,[alphabet(k*l-1),') ',char(season_names(k))],'fontsize',16)
+                % set(gca,'ylim',[10^-10 10^3],'xlim',[10^1 10^7],'xtick',[10^2, 10^4, 10^6],'fontsize',18); grid on;
+                % text(10^5,10^2,[alphabet(k*l-1),') ',char(season_names(k))],'fontsize',18)
                 if k == 2
-                    ylabel('Normalized iceberg count','fontsize',16);
+                    ylabel('Normalized iceberg count','fontsize',18);
                 end
                 
             else
@@ -2470,7 +3107,7 @@ for l = 1:2
                 else
                     subplot(subsc); log_n = log10(n1fa);
                 end
-                yyaxis left; axl = gca; pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.05*pos(3) pos(4)]);
+                yyaxis left; axl = gca; pos = get(gca,'position'); set(gca,'position',[pos(1) pos(2) 1.075*pos(3) 1.05*pos(4)]);
 
                 %plot the data
                 plot(log10([v1(zthresh+1),v1(zthresh+1)]),log10([10^-12 10^3]),'-.','LineWidth',1,'Color',[0.5 0.5 0.5]); hold on;
@@ -2491,7 +3128,7 @@ for l = 1:2
                     else
                         axl.YTickLabel = [];
                     end
-                    text(3.5,2.3,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',16);
+                    text(3.5,2.3,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',18);
                 else
                     axl.YAxis(1).Color = 'k'; set(axl,'box','on'); axl.LineWidth = 1.5;
                     axl.YLim = [-8 3]; axl.YTick = [-8:2:2]; %axl.YLim = [10^-10 10^3];
@@ -2502,14 +3139,14 @@ for l = 1:2
                     else
                         axl.YTickLabel = [];
                     end
-                    text(4.2,2.2,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',16);
+                    text(4.2,2.2,[alphabet((l-1)*3 + (k-1)),') ',char(sample_locs(l))],'fontsize',18);
                 end
-                axl.FontSize(1) = 16; %grid on;
-                % set(gca,'ylim',[10^-10 10^3],'xlim',[10^1 10^7],'xtick',[10^2, 10^4, 10^6],'fontsize',16); 
-                % text(10^5,10^2,[alphabet((k-1)+3),') ',char(season_names(k))],'fontsize',16)
-                xlabel('Surface area (m^2)','fontsize',16);
+                axl.FontSize(1) = 18; %grid on;
+                % set(gca,'ylim',[10^-10 10^3],'xlim',[10^1 10^7],'xtick',[10^2, 10^4, 10^6],'fontsize',18); 
+                % text(10^5,10^2,[alphabet((k-1)+3),') ',char(season_names(k))],'fontsize',18)
+                xlabel('Surface area (m^2)','fontsize',18);
                 if k == 2
-                    ylabel('Normalized iceberg count','fontsize',16);
+                    ylabel('Normalized iceberg count','fontsize',18);
                 end
             end
             %add the raw data
@@ -2542,7 +3179,7 @@ for l = 1:2
     end
     disp('moving on')
 end
-set(seas_leg,'position',[0.43 0.94 0.2,0.03]);
+set(seas_leg,'position',[0.43 0.93 0.2,0.03]);
 saveas(subdist_fig,[root_dir,'GrIS-melange_iceberg-distribution-variability_',num2str(zcutoff),'m-zcutoff_',suffix,'.png'],'png'); %save the plot
 exportgraphics(subdist_fig,[root_dir,'GrIS-melange_iceberg-distribution-variability_',num2str(zcutoff),'m-zcutoff_',suffix,'.tif'],Resolution=600);
 
