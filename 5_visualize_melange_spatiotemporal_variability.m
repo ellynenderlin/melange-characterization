@@ -102,7 +102,7 @@ for j = 1:length(geo_ind)
     % eval(['subV',num2str(geo_ind(j)),'=subplot(',num2str(rows),',',num2str(cols),',',num2str(plot_locs(j)),');']);
 end
 missfig = figure; set(missfig,'position',[1050 50 900 500]); 
-% subm1 = subplot(2,1,1); subm2 = subplot(2,1,2);
+subm1 = subplot(2,1,1); subm2 = subplot(2,1,2);
 
 % %If adding new dates, profiles need to be removed from the structure
 % %because the inland reference may have changed
@@ -114,6 +114,8 @@ missfig = figure; set(missfig,'position',[1050 50 900 500]);
 
 %create dummy vectors to hold all buttressing data for histogram plotting
 BM_annual = []; BM_character = []; BA_annual = []; BA_character = [];
+big3_misfit = []; big3_pack = []; big3_dist = []; big3_seas = []; 
+norm_misfit = []; norm_pack = []; norm_dist = []; norm_seas = []; 
 %iterate
 disp(['Creating profile plots ignoring icebergs thinner than ',num2str(Hcutoff),'m & using ',vfilter,' speeds w/ dt ~',num2str(round([vdtmin,vdtmax])),' days']);
 for l = 1:length(geo_names)
@@ -121,9 +123,8 @@ for l = 1:length(geo_names)
     j = find(strcmp(string(saved_sites),string(geo_order(l))));
 
     %specify site plotting conventions
-    site_abbrev = MP(j).name; disp(site_abbrev);
+    site_abbrev = MP(j).name; disp(['Extracting data from #',num2str(j),': ',site_abbrev]);
     seasons = MP(j).D.months;
-    disp(site_abbrev);
     transect_inc = round(nanmean(sqrt((diff(MP(j).V.X).^2 + diff(MP(j).V.Y).^2)))/100)*100;
 
     %isolate the dates for data sorting
@@ -637,50 +638,68 @@ for l = 1:length(geo_names)
         Hdist(Hdist==0) = 1;
         if ismember(MP(j).name,big3)
             %plot all data along the profiles
-            scatter(-res_A(k,:),packmean,240-18*log(Hdist),'d','MarkerFaceColor','none',...
+            scatter(-res_A(k,:),packmean,18-Hdist/3000,'d','MarkerFaceColor','none',...
                 'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
         else
             %plot all data along the profiles
-            scatter(-res_A(k,:),packmean,240-18*log(Hdist),'s','MarkerFaceColor','none',...
+            scatter(-res_A(k,:),packmean,18-Hdist/3000,'s','MarkerFaceColor','none',...
                 'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
         end
         drawnow;
 
         %scatterplot of bergy bit misfits vs packing density for all sites
-        figure(missfig); set(gca,'box','on');
+        figure(missfig); 
         if ismember(MP(j).name,big3)
-            %plot dummy points for the legend
-            small_ref = find(Hdist<1000,1,'first');
-            if ~isempty(small_ref) && ~isnan(packmean(small_ref))
-                pm(1) = plot(-res_A(k,small_ref),packmean(small_ref),'d','MarkerSize',sqrt(240-18*log(Hdist(small_ref))),'MarkerFaceColor','none',...
-                    'MarkerEdgeColor','k','LineWidth',1.5); hold on;
-            end
-            clear small_ref;
-            med_ref = find(Hdist<10000,1,'last');
-            if ~isempty(med_ref) && ~isnan(packmean(med_ref))
-                pm(2) = plot(-res_A(k,med_ref),packmean(med_ref),'d','MarkerSize',sqrt(240-18*log(Hdist(med_ref))),'MarkerFaceColor','none',...
-                    'MarkerEdgeColor','k','LineWidth',1.5); hold on;
-            end
-            clear med_ref;
-            big_ref = find(Hdist<20000,1,'last');
-            if ~isempty(big_ref)
-                pm(3) = plot(-res_A(k,big_ref),packmean(big_ref),'d','MarkerSize',sqrt(240-18*log(Hdist(big_ref))),'MarkerFaceColor','none',...
-                    'MarkerEdgeColor','k','LineWidth',1.5); hold on;
-            end
-            clear big_ref;
-
-            %plot all data along the profiles
-            scatter(-res_A(k,:),packmean,240-18*log(Hdist),'d','MarkerFaceColor','none',...
-                'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
-
+            big3_misfit = [big3_misfit, -res_A(k,:)]; big3_pack = [big3_pack, packmean']; 
+            big3_dist = [big3_dist, Hdist]; big3_seas = [big3_seas, repmat(k,size(packmean'))]; 
+            % subplot(subm1); set(gca,'box','on');
+            % 
+            % %plot dummy points for the legend
+            % small_ref = find(Hdist<1000,1,'first');
+            % if ~isempty(small_ref) && ~isnan(packmean(small_ref))
+            %     pm(1) = plot(-res_A(k,small_ref),packmean(small_ref),'d','MarkerSize',18-Hdist(small_ref)/3000,'MarkerFaceColor','none',...
+            %         'MarkerEdgeColor','k','LineWidth',1.5); hold on;
+            % end
+            % clear small_ref;
+            % med_ref = find(Hdist<10000,1,'last');
+            % if ~isempty(med_ref) && ~isnan(packmean(med_ref))
+            %     pm(2) = plot(-res_A(k,med_ref),packmean(med_ref),'d','MarkerSize',18-Hdist(med_ref)/3000,'MarkerFaceColor','none',...
+            %         'MarkerEdgeColor','k','LineWidth',1.5); hold on;
+            % end
+            % clear med_ref;
+            % big_ref = find(Hdist<20000,1,'last');
+            % if ~isempty(big_ref)
+            %     pm(3) = plot(-res_A(k,big_ref),packmean(big_ref),'d','MarkerSize',18-Hdist(big_ref)/3000,'MarkerFaceColor','none',...
+            %         'MarkerEdgeColor','k','LineWidth',1.5); hold on;
+            % end
+            % clear big_ref;
+            % 
+            % %plot all data along the profiles
+            % scatter(-res_A(k,:),packmean,18-Hdist/3000,'d','MarkerFaceColor','none',...
+            %     'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
+            % 
+            % %plot the data as background
+            % subplot(subm2);
+            % scatter(-res_A(k,:),packmean,18-Hdist/3000,'s','MarkerFaceColor',[0.2 0.2 0.2],...
+            %     'MarkerEdgeColor',[0.2 0.2 0.2],'LineWidth',1); hold on;
         else
-            %plot all data along the profiles
-            scatter(-res_A(k,:),packmean,240-18*log(Hdist),'s','MarkerFaceColor','none',...
-                'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
-            
+            norm_misfit = [norm_misfit, -res_A(k,:)]; norm_pack = [norm_pack, packmean']; 
+            norm_dist = [norm_dist, Hdist]; norm_seas = [norm_seas, repmat(k,size(packmean'))]; 
+            % subplot(subm2); set(gca,'box','on');
+            % 
+            % %plot all data along the profiles
+            % scatter(-res_A(k,:),packmean,18-Hdist/3000,'s','MarkerFaceColor','none',...
+            %     'MarkerEdgeColor',seas_cmap(k,:),'LineWidth',1.5); hold on;
+            % 
+            % 
+            % %plot the data as background
+            % subplot(subm1);
+            % scatter(-res_A(k,:),packmean,18-Hdist/3000,'s','MarkerFaceColor',[0.2 0.2 0.2],...
+            %     'MarkerEdgeColor',[0.2 0.2 0.2],'LineWidth',1); hold on;
         end
         % disp(['Min bergy bit plot symbol size: ',num2str(min(240-18*log(Hdist)))]);
-        drawnow; clear packmean Hmean;
+        % drawnow; 
+        clear packmean Hmean;
     end
     %call out the data for the example map & size distribution plot
     if contains(MP(j).name,'ASG')
@@ -747,12 +766,7 @@ for l = 1:length(geo_names)
     set(gca,'ylim',[0,100]);
     plot([0,0],[0,100],'-k','linewidth',1); hold on; %add zero misfit line
     xlabel('Bergy bit misfit (% Area)','fontsize',16); ylabel('Packing density (%)','fontsize',16); 
-    %format the bergy bit figure for all sites
-    figure(missfig);
-    set(gca,'fontsize',16); grid on; drawnow;
-    set(gca,'xlim',[-1,1],'xtick',[-1:0.5:1],'xticklabel',[-100:50:100],'ylim',[0,100]);
-    xlabel('Bergy bit misfit (% Area)','fontsize',16); ylabel('Packing density (%)','fontsize',16); 
-    figure(sitefig);
+    % figure(sitefig);
     leg_pos = get(seas_leg,'Position')
     seas_leg.Position = [leg_pos(1), 0.95 leg_pos(3), leg_pos(4)]; clear leg_pos;
     clear pz ps *_leg pos;
@@ -780,34 +794,83 @@ for l = 1:length(geo_names)
     drawnow; 
 
     %refresh
-    clear berg_* bergdist* berg_normdist* C centerline* D Dsubs *idx seaward_* inland_* term_* tran_* size_classes Zfilt H_* Havg vel_* vels* v_mean w zdate berg_mo bins bin_no z_* pos pz pv *dist *yrs *mos seas_leg packing;
-    clear leg_* ref_* Tdate* xlims Tslopes res* Tres size_plslope bin* column_names dv1 v1 n1* *_seas ax ax2 max_xlim width_prof Vterm dVdxterm subv subz*;
+    clear berg_* bergdist* berg_normdist* C centerline* D Dsubs *idx seaward_* inland_* term_* tran_* size_classes Zfilt H_* Havg vel_* vels* v_mean w zdate berg_mo bins bin_no z_* pos pz pv Hdist vdist *yrs *mos seas_leg packing;
+    clear leg_* ref_* Tdate* xlims Tslopes res* Tres size_plslope bin* column_names dv1 v1 n1* pack_seas vel_seas ax ax2 max_xlim width_prof Vterm dVdxterm subv subz*;
     clear ax1 ax2;
 
 end
-figure(missfig); set(gca,'box','on','linewidth',1.5);
+%create the bergy bit figure for all sites
+figure(missfig);
+norm_dist(norm_dist>24000) = 24000; big3_dist(big3_dist > 24000) = 24000;
+%plot the normal data in the background with the biggest 3 on top
+subplot(subm1); set(gca,'box','on','linewidth',1.5);
+set(gca,'fontsize',16); grid on; drawnow;
+set(gca,'xlim',[-1,1],'xtick',[-1:0.5:1],'xticklabel',[-100:50:100],'ylim',[0,100]);
+%plot dummy points for the legend
+small_ref = find(big3_dist<1000,1,'first');
+if ~isempty(small_ref) && ~isnan(big3_pack(small_ref))
+    pm(1) = scatter(big3_misfit(small_ref),big3_pack(small_ref),72-big3_dist(small_ref)/400,'d','MarkerFaceColor','none',...
+        'MarkerEdgeColor','k','LineWidth',1.5); hold on;
+end
+clear small_ref;
+med_ref = find(big3_dist<10000,1,'last');
+if ~isempty(med_ref) && ~isnan(big3_pack(med_ref))
+    pm(2) = scatter(big3_misfit(med_ref),big3_pack(med_ref),72-big3_dist(med_ref)/400,'d','MarkerFaceColor','none',...
+        'MarkerEdgeColor','k','LineWidth',1.5); hold on;
+end
+clear med_ref;
+big_ref = find(big3_dist<20000,1,'last');
+if ~isempty(big_ref)
+    pm(3) = scatter(big3_misfit(big_ref),big3_pack(big_ref),72-big3_dist(big_ref)/400,'d','MarkerFaceColor','none',...
+        'MarkerEdgeColor','k','LineWidth',1.5); hold on;
+end
+clear big_ref;
+%plot the normal sites' data as background
+scatter(norm_misfit,norm_pack,72-norm_dist/400,'s','MarkerFaceColor',[0.7 0.7 0.7],...
+    'MarkerEdgeColor',[0.7 0.7 0.7],'LineWidth',1.5,'MarkerEdgeAlpha',0.5,'MarkerFaceAlpha',0.5); hold on;
+%plot all data along the big sites' profiles
+for j = 1:length(big3_misfit)
+    scatter(big3_misfit(j),big3_pack(j),72-big3_dist(j)/400,'d','MarkerFaceColor','none',...
+        'MarkerEdgeColor',seas_cmap(big3_seas(j),:),'LineWidth',1.5); hold on;
+end
+xlabel('Bergy bit misfit (% Area)','fontsize',16); ylabel('Packing density (%)','fontsize',16);
+%create a subplot to show variability in the normal sites' data
+subplot(subm2); set(gca,'box','on','linewidth',1.5);
+%plot the big sites' data as background
+scatter(big3_misfit,big3_pack,72-big3_dist/400,'d','MarkerFaceColor',[0.7 0.7 0.7],...
+    'MarkerEdgeColor',[0.7 0.7 0.7],'LineWidth',1.5,'MarkerEdgeAlpha',0.5,'MarkerFaceAlpha',0.5); hold on;
+%plot all data along the normal sites' profiles
+for j = 1:length(norm_misfit)
+    scatter(norm_misfit(j),norm_pack(j),72-norm_dist(j)/400,'s','MarkerFaceColor','none',...
+        'MarkerEdgeColor',seas_cmap(norm_seas(j),:),'LineWidth',1); hold on;
+end
+set(gca,'fontsize',16); grid on; drawnow;
+set(gca,'xlim',[-1,1],'xtick',[-1:0.5:1],'xticklabel',[-100:50:100],'ylim',[0,100]);
+xlabel('Bergy bit misfit (% Area)','fontsize',16); ylabel('Packing density (%)','fontsize',16);
 xlims = get(gca,'xlim'); ylims = get(gca,'ylim');
 % miss_leg = legend(pm,'terminus','10 km','20 km'); set(miss_leg,'location','southwest');
 %spoof a legend for distance from the terminus so it includes both symbol types
-rectangle('position',[min(xlims)+0.05*range(xlims), min(ylims)+0.075*range(ylims),0.25*range(xlims),0.3*range(ylims)],'facecolor', ...
+subplot(subm2); 
+rectangle('position',[min(xlims)+0.05*range(xlims), min(ylims)+0.075*range(ylims),0.15*range(xlims),0.75*range(ylims)],'facecolor', ...
     'w','edgecolor','k','linewidth',1.5);
-plot(min(xlims)+0.085*range(xlims), min(ylims)+0.18*range(ylims),...
-    's','MarkerSize',sqrt(240-18*log(1)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
-plot(min(xlims)+0.085*range(xlims), min(ylims)+0.135*range(ylims),...
-    's','MarkerSize',sqrt(240-18*log(10000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
-plot(min(xlims)+0.085*range(xlims), min(ylims)+0.10*range(ylims),...
-    's','MarkerSize',sqrt(240-18*log(20000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
-plot(min(xlims)+0.14*range(xlims), min(ylims)+0.18*range(ylims),...
-    'd','MarkerSize',sqrt(240-18*log(1)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
-plot(min(xlims)+0.14*range(xlims), min(ylims)+0.135*range(ylims),...
-    'd','MarkerSize',sqrt(240-18*log(10000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
-plot(min(xlims)+0.14*range(xlims), min(ylims)+0.10*range(ylims),...
-    'd','MarkerSize',sqrt(240-18*log(20000)),'markeredgecolor','k','markerfacecolor','w','linewidth',1);
-text(min(xlims)+0.18*range(xlims),min(ylims)+0.185*range(ylims),['terminus'],'fontsize',14);
-text(min(xlims)+0.18*range(xlims),min(ylims)+0.14*range(ylims),['10 km'],'fontsize',14);
-text(min(xlims)+0.18*range(xlims),min(ylims)+0.1*range(ylims),['20 km'],'fontsize',14);
-text(min(xlims)+0.08*range(xlims),min(ylims)+0.22*range(ylims),['D<15 Gt yr^{-1}'],'fontsize',14,'rotation',45);
-text(min(xlims)+0.155*range(xlims),min(ylims)+0.22*range(ylims),['D>15 Gt yr^{-1}'],'fontsize',14,'rotation',45);
+scatter(min(xlims)+0.070*range(xlims), min(ylims)+0.38*range(ylims),...
+    72-0/400,'s','markeredgecolor','k','markerfacecolor','w','linewidth',1);
+scatter(min(xlims)+0.070*range(xlims), min(ylims)+0.25*range(ylims),...
+    72-12000/400,'s','markeredgecolor','k','markerfacecolor','w','linewidth',1);
+scatter(min(xlims)+0.070*range(xlims), min(ylims)+0.12*range(ylims),...
+    72-24000/400,'s','markeredgecolor','k','markerfacecolor','w','linewidth',1);
+scatter(min(xlims)+0.095*range(xlims), min(ylims)+0.38*range(ylims),...
+    72-0/400,'d','markeredgecolor','k','markerfacecolor','w','linewidth',1);
+scatter(min(xlims)+0.095*range(xlims), min(ylims)+0.25*range(ylims),...
+    72-12000/400,'d','markeredgecolor','k','markerfacecolor','w','linewidth',1);
+scatter(min(xlims)+0.095*range(xlims), min(ylims)+0.12*range(ylims),...
+    72-24000/400,'d','markeredgecolor','k','markerfacecolor','w','linewidth',1);
+text(min(xlims)+0.11*range(xlims),min(ylims)+0.385*range(ylims),['terminus'],'fontsize',14);
+text(min(xlims)+0.11*range(xlims),min(ylims)+0.25*range(ylims),['12 km'],'fontsize',14);
+text(min(xlims)+0.11*range(xlims),min(ylims)+0.13*range(ylims),[char(8805),'24 km'],'fontsize',14);
+text(min(xlims)+0.06*range(xlims),min(ylims)+0.45*range(ylims),['D<15 Gt yr^{-1}'],'fontsize',14,'rotation',45);
+text(min(xlims)+0.09*range(xlims),min(ylims)+0.435*range(ylims),['D>15 Gt yr^{-1}'],'fontsize',14,'rotation',45);
+subplot(subm1); 
 missleg = legend(scat,season_names); missleg.Location = 'northeast';
 saveas(missfig,[root_dir,'GrIS-bergybit_',num2str(zcutoff),'m-zcutoff_scatterplot.png'],'png'); 
 exportgraphics(missfig,[root_dir,'GrIS-bergybit_',num2str(zcutoff),'m-zcutoff_scatterplot.tif'],Resolution=600);
