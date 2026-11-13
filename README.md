@@ -23,6 +23,8 @@ Produces site-specific and regional plots of melange attributes. Requires custom
 ### 6_calculate_melange_meltwater_fluxes_DEV.m: (CODE IN DEVELOPMENT! Not needed for melange analysis)
 Combines the melange observations to estimate freshwater fluxes from the melange.
 
+
+## Contributions
 This code was developed jointly by Ellyn Enderlin, Jukes Liu, and Michal Kopera at Boise State University. Please contact ellynenderlin@boisestate.edu or post a issue or discussion on Github if you encounter problems using any codes in this repository.
 
 This repository is no longer under active development. If you would like to contribute to the code to make it more efficient, expand its application, or any other modification, please make a pull request.
