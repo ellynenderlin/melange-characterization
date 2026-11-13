@@ -1,6 +1,8 @@
 # melange-characterization
 Code for analysis of iceberg size distributions extracted from very high-resolution digital elevation models of near-terminus ice melange. After manually pre-processing DEMs (i.e., tracing termini, masking out open water in order to isolate the melange, drawing a centerline), the DEMs are partitioned into bins and iceberg size distributions are estimated from binned elevation distributions. The binned size distributions are paired with ITS_LIVE speeds extracted along the centerline to estimate buttressing generated at glacier termini by melange. The size distributions can be fit with fragmentation theory equations to assess controls on iceberg size distributions with respect to buttressing. 
 
+The workflow is primarily executed in (R)MATLAB. MATLAB version 2024b was primarily used for data processing but the .m files should run using versions within a few years of 2024b. The melange_environment.yml can be used to create an environment (using micromamba or miniconda) to execute the two .ipynb files that are used in the workflow.
+
 ## The files that you need to run, in order, to execute the code are 
 
 ### 1_generate_size_distrib.m: 
@@ -22,3 +24,5 @@ Produces site-specific and regional plots of melange attributes. Requires custom
 Combines the melange observations to estimate freshwater fluxes from the melange.
 
 This code was developed jointly by Ellyn Enderlin, Jukes Liu, and Michal Kopera at Boise State University. Please contact ellynenderlin@boisestate.edu or post a issue or discussion on Github if you encounter problems using any codes in this repository.
+
+This repository is no longer under active development. If you would like to contribute to the code to make it more efficient, expand its application, or any other modification, please make a pull request.
